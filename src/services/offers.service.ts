@@ -14,7 +14,7 @@ export interface OffersQueryParams {
 export const offersService = {
   async list(params?: OffersQueryParams): Promise<{ data: BookingOffer[]; count: number }> {
     const query: Record<string, string> = {
-      select: '*',
+      select: '*,request:request_id(*),office:office_id(*)',
     };
 
     if (params?.limit) {
@@ -41,7 +41,7 @@ export const offersService = {
     }
 
     const res = await apiClient.get<BookingOffer[]>('/BookingOffers', {
-      params: { ...query, select: '*,office:office_id(*)' },
+      params: query,
       headers: { Prefer: 'count=exact' },
     });
     const total = Number(res.headers['content-range']?.split('/')[1] || res.data.length);
@@ -50,17 +50,10 @@ export const offersService = {
 
   async getById(id: string): Promise<BookingOffer> {
     const res = await apiClient.get<BookingOffer[]>('/BookingOffers', {
-      params: { id: `eq.${id}`, select: '*,office:office_id(*)' },
+      params: { id: `eq.${id}`, select: '*,request:request_id(*),office:office_id(*)' },
     });
     if (!res.data.length) throw { message: 'Offer not found', status: 404 };
     return res.data[0];
-  },
-
-  async create(data: Partial<BookingOffer>): Promise<BookingOffer> {
-    const res = await apiClient.post<BookingOffer>('/BookingOffers', data, {
-      headers: { Prefer: 'return=representation' },
-    });
-    return res.data;
   },
 
   async updateStatus(id: string, status: string): Promise<BookingOffer> {

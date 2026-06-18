@@ -1,8 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiGrid, FiUsers, FiBriefcase, FiTruck, FiFileText, FiGift, FiHeart, FiSettings, FiX, FiLogOut, FiShield } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiBriefcase, FiTruck, FiFileText, FiGift, FiHeart, FiSettings, FiX, FiLogOut } from 'react-icons/fi';
 import { useTranslation } from '@/i18n/provider';
 import { useAuth } from '@/context/AuthContext';
 
@@ -39,36 +40,27 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           isOpen ? 'translate-x-0' : dir === 'rtl' ? 'translate-x-full' : '-translate-x-full'
         } lg:translate-x-0`}
       >
-        <div className="flex h-16 items-center justify-between border-b border-gray-800 px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <FiTruck className="text-white" size={18} />
+        <div className="flex h-20 items-center justify-between border-b border-gray-800 px-5">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-blue-500/25 bg-white shadow-lg shadow-blue-950/20 ring-2 ring-blue-500/10">
+              <Image
+                src="/ajrni-favicon.png"
+                alt="Ajrni"
+                width={48}
+                height={48}
+                priority
+                className="h-full w-full object-cover"
+              />
             </div>
-            <span className="text-lg font-bold text-white">Ajrni</span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">{admin?.full_name || 'Admin'}</p>
+              <p className="truncate text-xs text-gray-400">{admin?.email || 'admin'}</p>
+            </div>
           </Link>
           <button onClick={onClose} className="rounded-lg p-1 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors lg:hidden">
             <FiX size={20} />
           </button>
         </div>
-
-        {admin && (
-          <div className="border-b border-gray-800 px-6 py-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600/20 text-blue-500 text-sm font-bold">
-                {admin.full_name?.charAt(0) || 'A'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{admin.full_name}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <FiShield size={12} className={admin.role === 'super_admin' ? 'text-amber-400' : 'text-blue-500'} />
-                  <span className={`text-xs ${admin.role === 'super_admin' ? 'text-amber-400' : 'text-blue-500'}`}>
-                    {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <nav className="flex flex-col gap-1 p-4">
           {navItems.map((item) => {

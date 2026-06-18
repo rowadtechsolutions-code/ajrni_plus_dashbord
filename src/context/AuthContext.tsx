@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { adminsService } from '@/services/admins.service';
 import type { Admin } from '@/types';
@@ -19,27 +19,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const clearSession = useCallback(async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem('supabase_session');
+    setAdmin(null);
+  }, []);
+
   const fetchAdmin = useCallback(async (userId: string): Promise<Admin | null> => {
-    console.log('[Auth] fetchAdmin for userId:', userId);
     const adminData = await adminsService.getCurrentAdmin(userId);
-    console.log('[Auth] fetchAdmin result:', adminData);
     setAdmin(adminData);
     return adminData;
   }, []);
 
   useEffect(() => {
     const init = async () => {
-      console.log('[Auth] initializing...');
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('[Auth] existing session:', session ? 'found' : 'none');
-      if (session?.access_token) {
+
+      if (session?.access_token && session.user) {
         localStorage.setItem('supabase_session', JSON.stringify({ access_token: session.access_token }));
-        if (session.user) {
-          await fetchAdmin(session.user.id);
+        const adminData = await fetchAdmin(session.user.id);
+
+        if (!adminData) {
+          await clearSession();
         }
+      } else {
+        localStorage.removeItem('supabase_session');
+        setAdmin(null);
       }
+
       setLoading(false);
     };
+
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -47,59 +57,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('supabase_session', JSON.stringify({ access_token: session.access_token }));
       } else {
         localStorage.removeItem('supabase_session');
+        setAdmin(null);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchAdmin]);
+  }, [clearSession, fetchAdmin]);
 
-  // تسجيل الدخول
   const signIn = useCallback(async (email: string, password: string): Promise<Admin | null> => {
-    console.log('[Auth] signIn starting...');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      console.error('[Auth] signIn auth error:', error);
-      throw error;
-    }
+    if (error) throw error;
 
-    if (!data.user) {
-      console.error('[Auth] signIn no user returned');
+    if (!data.user || !data.session?.access_token) {
+      await clearSession();
       return null;
     }
 
-    // خزّن الـ token
-    const token = data.session?.access_token;
-    if (token) {
-      localStorage.setItem('supabase_session', JSON.stringify({ access_token: token }));
-    }
+    localStorage.setItem('supabase_session', JSON.stringify({ access_token: data.session.access_token }));
 
-    // تحقق أولاً من Admins
     const adminData = await fetchAdmin(data.user.id);
-    if (adminData) {
-      try {
-        await adminsService.updateLastLogin(data.user.id);
-      } catch {
-        // silent
-      }
-      return adminData;
+    if (!adminData) {
+      await clearSession();
+      return null;
     }
 
-    // إذا مو أدمن، تحقق من user_metadata
-    const meta = data.user.user_metadata || {};
-    if (meta.role === 'office') {
-      return null; // سيتم التعامل معه في صفحة تسجيل الدخول
-    }
+    await adminsService.updateLastLogin(data.user.id);
+    return adminData;
+  }, [clearSession, fetchAdmin]);
 
-    return null;
-  }, [fetchAdmin]);
-
-  // تسجيل الخروج
   const signOut = useCallback(async () => {
-    console.log('[Auth] signOut');
-    await supabase.auth.signOut();
-    localStorage.removeItem('supabase_session');
-    setAdmin(null);
-  }, []);
+    await clearSession();
+  }, [clearSession]);
 
   return (
     <AuthContext.Provider

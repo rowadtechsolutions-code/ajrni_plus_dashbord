@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api/axios';
-import type { BookingRequest, BookingRequestOffice } from '@/types';
+import type { BookingRequest, BookingRequestOffice, BookingOffer } from '@/types';
 
 export interface BookingQueryParams {
   page?: number;
@@ -44,7 +44,9 @@ export const bookingService = {
   },
 
   async getRequestById(id: string): Promise<BookingRequest> {
-    const res = await apiClient.get<BookingRequest[]>(`/BookingRequests?id=eq.${id}`);
+    const res = await apiClient.get<BookingRequest[]>('/BookingRequests', {
+      params: { id: `eq.${id}`, select: '*' },
+    });
     if (!res.data.length) throw { message: 'Request not found', status: 404 };
     return res.data[0];
   },
@@ -57,7 +59,24 @@ export const bookingService = {
   },
 
   async listRequestOffices(requestId: string): Promise<BookingRequestOffice[]> {
-    const res = await apiClient.get<BookingRequestOffice[]>(`/BookingRequestOffices?request_id=eq.${requestId}`);
+    const res = await apiClient.get<BookingRequestOffice[]>('/BookingRequestOffices', {
+      params: {
+        request_id: `eq.${requestId}`,
+        select: '*,office:office_id(*)',
+        order: 'created_at.desc',
+      },
+    });
+    return res.data;
+  },
+
+  async listRequestOffers(requestId: string): Promise<BookingOffer[]> {
+    const res = await apiClient.get<BookingOffer[]>('/BookingOffers', {
+      params: {
+        request_id: `eq.${requestId}`,
+        select: '*,office:office_id(*)',
+        order: 'created_at.desc',
+      },
+    });
     return res.data;
   },
 

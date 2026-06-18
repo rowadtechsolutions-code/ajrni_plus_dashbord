@@ -9,23 +9,27 @@ import { FiArrowLeft } from 'react-icons/fi';
 import { format } from 'date-fns';
 
 const statusColors: Record<string, 'warning' | 'success' | 'error'> = {
-  pending: 'warning', accepted: 'success', rejected: 'error',
+  pending: 'warning',
+  accepted: 'success',
+  rejected: 'error',
 };
 
 export default function RequestDetailPage() {
   const { t } = useTranslation();
   const params = useParams();
   const router = useRouter();
+  const requestId = params.id as string;
+
   const { data: request, isLoading } = useQuery({
-    queryKey: ['request', params.id],
-    queryFn: () => bookingService.getRequestById(params.id as string),
-    enabled: !!params.id,
+    queryKey: ['request', requestId],
+    queryFn: () => bookingService.getRequestById(requestId),
+    enabled: !!requestId,
   });
 
-  const { data: offices } = useQuery({
-    queryKey: ['request-offices', params.id],
-    queryFn: () => bookingService.listRequestOffices(params.id as string),
-    enabled: !!params.id,
+  const { data: offers, isLoading: isLoadingOffers } = useQuery({
+    queryKey: ['request-offers', requestId],
+    queryFn: () => bookingService.listRequestOffers(requestId),
+    enabled: !!requestId,
   });
 
   if (isLoading) return <div className="text-gray-400">{t.common.loading}</div>;
@@ -93,19 +97,65 @@ export default function RequestDetailPage() {
         </div>
       </div>
 
-      {offices && offices.length > 0 && (
-        <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-6">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">{t.requests.assignedOffices}</h3>
-          <div className="space-y-2">
-            {offices.map((off) => (
-              <div key={off.id} className="flex items-center justify-between rounded-lg bg-gray-800 p-3">
-                <span className="text-sm text-gray-300">{off.office_id}</span>
-                <Badge variant={off.is_read ? 'success' : 'warning'}>{off.status}</Badge>
+      <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-6">
+        <h3 className="text-sm font-semibold text-gray-300 mb-4">{t.requests.assignedOffices}</h3>
+        {isLoadingOffers ? (
+          <p className="text-sm text-gray-500">{t.common.loading}</p>
+        ) : offers && offers.length > 0 ? (
+          <div className="space-y-3">
+            {offers.map((offer) => (
+              <div key={offer.id} className="rounded-lg bg-gray-800 p-4">
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offices.officeName}</label>
+                    <p className="text-sm text-white">{offer.office?.office_name || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offices.phone}</label>
+                    <p className="text-sm text-white">{offer.office?.phone_number || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offices.email}</label>
+                    <p className="text-sm text-white">{offer.office?.email || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offices.city} / {t.offices.country}</label>
+                    <p className="text-sm text-white">{[offer.office?.city, offer.office?.country].filter(Boolean).join(' / ') || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offers.carName}</label>
+                    <p className="text-sm text-white">{offer.car_name}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offers.carModel}</label>
+                    <p className="text-sm text-white">{offer.car_model}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offers.pricePerDay}</label>
+                    <p className="text-sm text-white">{offer.price_per_day}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">{t.offers.totalPrice}</label>
+                    <p className="text-sm text-white">{offer.total_price}</p>
+                  </div>
+                </div>
+                {offer.notes && (
+                  <div className="mb-3">
+                    <label className="text-xs text-gray-500">{t.offers.notes}</label>
+                    <p className="text-sm text-white">{offer.notes}</p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">{t.offers.status}</span>
+                  <Badge variant={statusColors[offer.status]}>{t.offers[offer.status as keyof typeof t.offers]}</Badge>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-gray-500">{t.common.noData}</p>
+        )}
+      </div>
     </div>
   );
 }

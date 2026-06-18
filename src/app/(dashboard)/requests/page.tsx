@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
-import type { BookingRequest } from '@/types';
+import type { BookingOffer, BookingRequest } from '@/types';
 import { format } from 'date-fns';
 
 const statusColors: Record<string, 'warning' | 'success' | 'error'> = {
@@ -18,6 +18,78 @@ const statusColors: Record<string, 'warning' | 'success' | 'error'> = {
   accepted: 'success',
   rejected: 'error',
 };
+
+function RequestOffers({
+  offers,
+  loading,
+}: {
+  offers?: BookingOffer[];
+  loading: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="pt-4 border-t border-gray-700">
+      <h4 className="text-sm font-semibold text-gray-300 mb-3">{t.requests.assignedOffices}</h4>
+      {loading ? (
+        <p className="text-sm text-gray-500">{t.common.loading}</p>
+      ) : offers && offers.length > 0 ? (
+        <div className="space-y-3">
+          {offers.map((offer) => (
+            <div key={offer.id} className="rounded-lg bg-gray-800 p-4">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs text-gray-500">{t.offices.officeName}</label>
+                  <p className="text-sm text-white">{offer.office?.office_name || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offices.phone}</label>
+                  <p className="text-sm text-white">{offer.office?.phone_number || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offices.email}</label>
+                  <p className="text-sm text-white">{offer.office?.email || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offices.city} / {t.offices.country}</label>
+                  <p className="text-sm text-white">{[offer.office?.city, offer.office?.country].filter(Boolean).join(' / ') || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offers.carName}</label>
+                  <p className="text-sm text-white">{offer.car_name}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offers.carModel}</label>
+                  <p className="text-sm text-white">{offer.car_model}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offers.pricePerDay}</label>
+                  <p className="text-sm text-white">{offer.price_per_day}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">{t.offers.totalPrice}</label>
+                  <p className="text-sm text-white">{offer.total_price}</p>
+                </div>
+              </div>
+              {offer.notes && (
+                <div className="mb-3">
+                  <label className="text-xs text-gray-500">{t.offers.notes}</label>
+                  <p className="text-sm text-white">{offer.notes}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">{t.offers.status}</span>
+                <Badge variant={statusColors[offer.status]}>{t.offers[offer.status as keyof typeof t.offers]}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">{t.common.noData}</p>
+      )}
+    </div>
+  );
+}
 
 export default function RequestsPage() {
   const { t } = useTranslation();
@@ -35,9 +107,9 @@ export default function RequestsPage() {
     queryFn: () => bookingService.listRequests({ page, limit, search }),
   });
 
-  const { data: offices } = useQuery({
-    queryKey: ['request-offices', selectedRequest?.id],
-    queryFn: () => bookingService.listRequestOffices(selectedRequest!.id),
+  const { data: offers, isLoading: isLoadingOffers } = useQuery({
+    queryKey: ['request-offers', selectedRequest?.id],
+    queryFn: () => bookingService.listRequestOffers(selectedRequest!.id),
     enabled: !!selectedRequest?.id,
   });
 
@@ -147,19 +219,7 @@ export default function RequestsPage() {
               )}
             </div>
 
-            {offices && offices.length > 0 && (
-              <div className="pt-4 border-t border-gray-700">
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">{t.requests.assignedOffices}</h4>
-                <div className="space-y-2">
-                  {offices.map((off) => (
-                    <div key={off.id} className="flex items-center justify-between rounded-lg bg-gray-800 p-3">
-                      <span className="text-sm text-gray-300">{off.office_id}</span>
-                      <Badge variant={off.is_read ? 'success' : 'warning'}>{off.status}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <RequestOffers offers={offers} loading={isLoadingOffers} />
 
             <div className="flex justify-end gap-2 pt-4 border-t border-gray-700">
               {selectedRequest.status === 'pending' && (
@@ -184,7 +244,7 @@ export default function RequestsPage() {
         onClose={() => setConfirmAction(null)}
         onConfirm={() => { if (selectedRequest) updateStatusMutation.mutate({ id: selectedRequest.id, status: 'accepted' }); }}
         title={t.requests.accepted}
-        message="هل أنت متأكد من قبول هذا الطلب؟"
+        message={t.common.confirm}
         variant="info"
         loading={updateStatusMutation.isPending}
       />
@@ -194,7 +254,7 @@ export default function RequestsPage() {
         onClose={() => setConfirmAction(null)}
         onConfirm={() => { if (selectedRequest) updateStatusMutation.mutate({ id: selectedRequest.id, status: 'rejected' }); }}
         title={t.requests.rejected}
-        message="هل أنت متأكد من رفض هذا الطلب؟"
+        message={t.common.confirm}
         variant="danger"
         loading={updateStatusMutation.isPending}
       />

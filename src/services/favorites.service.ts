@@ -4,8 +4,9 @@ import type { Favorite } from '@/types';
 export const favoritesService = {
   async list(limit?: number): Promise<Favorite[]> {
     const params: Record<string, string> = {
-      select: '*,user:users(*),car:cars(office:office_id(*))',
+      select: '*,car:car_id(*,office:office_id(*))',
       limit: String(limit || 50),
+      order: 'created_at.desc',
     };
     const res = await apiClient.get<Favorite[]>('/Favorites', { params });
     return res.data;
