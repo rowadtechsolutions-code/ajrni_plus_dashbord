@@ -1,19 +1,36 @@
 import apiClient from '@/lib/api/axios';
 import type { Favorite } from '@/types';
 
+export interface FavoritesQueryParams {
+  page?: number;
+  limit?: number;
+}
+
 export const favoritesService = {
-  async list(limit?: number): Promise<Favorite[]> {
-    const params: Record<string, string> = {
+  async list(params?: FavoritesQueryParams): Promise<{ data: Favorite[]; count: number }> {
+    const query: Record<string, string> = {
       select: '*,car:car_id(*,office:office_id(*))',
-      limit: String(limit || 50),
       order: 'created_at.desc',
     };
-    const res = await apiClient.get<Favorite[]>('/Favorites', { params });
-    return res.data;
+
+    if (params?.limit) {
+      query.limit = String(params.limit);
+      if (params?.page && params.page > 1) {
+        query.offset = String((params.page - 1) * params.limit);
+      }
+    }
+
+    const res = await apiClient.get<Favorite[]>('/Favorites', {
+      params: query,
+      headers: { Prefer: 'count=exact' },
+    });
+    const total = Number(res.headers['content-range']?.split('/')[1] || res.data.length);
+    return { data: res.data, count: total };
   },
 
   async getStats(): Promise<{ totalFavorites: number; topCars: { car_id: string; count: number }[]; topUsers: { user_id: string; count: number }[] }> {
-    const favorites = await favoritesService.list(1000);
+    const res = await favoritesService.list({ limit: 1000 });
+    const favorites = res.data;
     const carCounts: Record<string, number> = {};
     const userCounts: Record<string, number> = {};
 

@@ -28,6 +28,7 @@ const en = {
     close: 'Close',
     activate: 'Activate',
     deactivate: 'Deactivate',
+    date: 'Date',
   },
   nav: {
     dashboard: 'Dashboard',

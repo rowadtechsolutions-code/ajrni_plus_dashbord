@@ -12,7 +12,7 @@ interface PaginationProps {
 export function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
   const { t, dir } = useTranslation();
 
-  if (totalPages <= 1) return null;
+  if (totalPages <= 0) return null;
 
   const pages: number[] = [];
   const start = Math.max(1, currentPage - 2);

@@ -28,6 +28,7 @@ const ar = {
     close: 'إغلاق',
     activate: 'تفعيل',
     deactivate: 'إلغاء التفعيل',
+    date: 'التاريخ',
   },
   nav: {
     dashboard: 'لوحة التحكم',
