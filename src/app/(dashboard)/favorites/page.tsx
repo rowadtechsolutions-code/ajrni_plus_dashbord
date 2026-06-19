@@ -42,6 +42,11 @@ export default function FavoritesPage() {
     { key: 'year', label: t.cars.year, render: (fav: Favorite) => fav.car?.year || '-' },
     { key: 'price', label: t.cars.price, render: (fav: Favorite) => fav.car?.price || '-' },
     {
+      key: 'user',
+      label: t.users.fullName,
+      render: (fav: Favorite) => fav.user?.full_name || fav.user_id?.slice(0, 8) || '-',
+    },
+    {
       key: 'office',
       label: t.cars.office,
       render: (fav: Favorite) => fav.car?.office?.office_name || '-',

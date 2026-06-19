@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api/axios';
-import type { Favorite } from '@/types';
+import type { Favorite, User } from '@/types';
 
 export interface FavoritesQueryParams {
   page?: number;
@@ -9,7 +9,7 @@ export interface FavoritesQueryParams {
 export const favoritesService = {
   async list(params?: FavoritesQueryParams): Promise<{ data: Favorite[]; count: number }> {
     const query: Record<string, string> = {
-      select: '*,car:car_id(*,office:office_id(*))',
+      select: '*,car:car_id!left(*,office:office_id!left(*))',
       order: 'created_at.desc',
     };
 
@@ -25,7 +25,19 @@ export const favoritesService = {
       headers: { Prefer: 'count=exact' },
     });
     const total = Number(res.headers['content-range']?.split('/')[1] || res.data.length);
-    return { data: res.data, count: total };
+    const data = res.data;
+
+    const userIds = [...new Set(data.map(f => f.user_id).filter(Boolean))];
+    if (userIds.length > 0) {
+      const userRes = await apiClient.get('/Users', {
+        params: { id: `in.(${userIds.join(',')})`, select: 'id,full_name' },
+      });
+      const userMap: Record<string, string> = {};
+      (userRes.data as { id: string; full_name: string }[]).forEach(u => { userMap[u.id] = u.full_name; });
+      data.forEach(f => { if (userMap[f.user_id]) f.user = { id: f.user_id, full_name: userMap[f.user_id] } as User; });
+    }
+
+    return { data, count: total };
   },
 
   async getStats(): Promise<{ totalFavorites: number; topCars: { car_id: string; count: number }[]; topUsers: { user_id: string; count: number }[] }> {
