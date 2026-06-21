@@ -107,6 +107,20 @@ export interface PaginatedResponse<T> {
   currentPage: number;
 }
 
+export interface Banner {
+  id: string;
+  created_at: string;
+  title: string;
+  image_url: string;
+  office_id: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  office?: Office;
+}
+
 export interface ApiError {
   message: string;
   status: number;
