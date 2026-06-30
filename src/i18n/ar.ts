@@ -39,6 +39,7 @@ const ar = {
     offers: 'العروض',
     favorites: 'المفضلة',
     banners: 'الإعلانات',
+    notifications: 'الإشعارات',
     settings: 'الإعدادات',
   },
   dashboard: {

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiGrid, FiUsers, FiBriefcase, FiTruck, FiFileText, FiGift, FiHeart, FiImage, FiSettings, FiX, FiLogOut } from 'react-icons/fi';
+import { FiGrid, FiUsers, FiBriefcase, FiTruck, FiFileText, FiGift, FiHeart, FiImage, FiBell, FiSettings, FiX, FiLogOut } from 'react-icons/fi';
 import { useTranslation } from '@/i18n/provider';
 import { useAuth } from '@/context/AuthContext';
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/offers', icon: FiGift, labelKey: 'offers' },
   { href: '/favorites', icon: FiHeart, labelKey: 'favorites' },
   { href: '/banners', icon: FiImage, labelKey: 'banners' },
+  { href: '/notifications', icon: FiBell, labelKey: 'notifications' },
   { href: '/settings', icon: FiSettings, labelKey: 'settings' },
 ];
 

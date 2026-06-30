@@ -39,6 +39,7 @@ const en = {
     offers: 'Offers',
     favorites: 'Favorites',
     banners: 'Advertisements',
+    notifications: 'Notifications',
     settings: 'Settings',
   },
   dashboard: {
