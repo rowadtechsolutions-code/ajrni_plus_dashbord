@@ -121,6 +121,14 @@ export interface Banner {
   office?: Office;
 }
 
+export interface DuplicateOfficeInfo {
+  id: string;
+  office_name: string;
+  phone_number: string;
+  commercial_registration_number: string;
+  is_active: boolean;
+}
+
 export interface ApiError {
   message: string;
   status: number;
