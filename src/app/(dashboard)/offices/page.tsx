@@ -20,16 +20,20 @@ export default function OfficesPage() {
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [countryFilter, setCountryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortFilter, setSortFilter] = useState('newest');
   const [selectedOffice, setSelectedOffice] = useState<Office | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'toggle'; office: Office } | null>(null);
   const [duplicateGroup, setDuplicateGroup] = useState<{ offices: DuplicateOfficeInfo[]; regNumber: string; currentOfficeId: string } | null>(null);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const limit = 10;
+  const activeStatusParam = statusFilter === 'active' ? 'true' : statusFilter === 'inactive' ? 'false' : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['offices', page, search],
-    queryFn: () => officesService.list({ page, limit, search }),
+    queryKey: ['offices', page, search, activeStatusParam],
+    queryFn: () => officesService.list({ page, limit, search, is_active: activeStatusParam }),
   });
 
   const { data: allOfficesData } = useQuery({
@@ -53,6 +57,29 @@ export default function OfficesPage() {
     }
     return map;
   }, [allOfficesData]);
+
+  const countryOptions = useMemo(() => {
+    if (!data?.data) return [];
+    return [...new Set(data.data.map((o) => o.country).filter(Boolean))].sort();
+  }, [data]);
+
+  const filteredData = useMemo(() => {
+    let result = data?.data || [];
+    if (countryFilter) result = result.filter((o) => o.country === countryFilter);
+    switch (sortFilter) {
+      case 'newest': result = [...result].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+      case 'oldest': result = [...result].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
+      case 'name_asc': result = [...result].sort((a, b) => a.office_name.localeCompare(b.office_name)); break;
+      case 'name_desc': result = [...result].sort((a, b) => b.office_name.localeCompare(a.office_name)); break;
+    }
+    return result;
+  }, [data, countryFilter, sortFilter]);
+
+  const resetFilters = () => {
+    setCountryFilter('');
+    setStatusFilter('all');
+    setSortFilter('newest');
+  };
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => officesService.toggleActive(id, isActive),
@@ -130,9 +157,50 @@ export default function OfficesPage() {
         <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder={t.offices.searchPlaceholder} />
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={countryFilter}
+          onChange={(e) => { setCountryFilter(e.target.value); setPage(1); }}
+          className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-colors"
+        >
+          <option value="">{t.offices.allCountries}</option>
+          {countryOptions.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-colors"
+        >
+          <option value="all">{t.common.all}</option>
+          <option value="active">{t.common.active}</option>
+          <option value="inactive">{t.common.inactive}</option>
+        </select>
+
+        <select
+          value={sortFilter}
+          onChange={(e) => { setSortFilter(e.target.value); setPage(1); }}
+          className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-colors"
+        >
+          <option value="newest">{t.offices.newest}</option>
+          <option value="oldest">{t.offices.oldest}</option>
+          <option value="name_asc">{t.offices.nameAsc}</option>
+          <option value="name_desc">{t.offices.nameDesc}</option>
+        </select>
+
+        <button
+          onClick={resetFilters}
+          className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
+        >
+          {t.offices.reset}
+        </button>
+      </div>
+
       <Table
         columns={columns}
-        data={data?.data || []}
+        data={filteredData}
         loading={isLoading}
         onRowClick={(office) => { setSelectedOffice(office); setShowModal(true); }}
         pagination={{

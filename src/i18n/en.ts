@@ -147,6 +147,13 @@ const en = {
     officeWithoutName: 'Office without name',
     duplicateCheckFailed: 'Failed to check for duplicate accounts',
     duplicateTooltip: 'There are multiple accounts registered with the same commercial registration number',
+    allCountries: 'All Countries',
+    allCities: 'All Cities',
+    newest: 'Newest',
+    oldest: 'Oldest',
+    nameAsc: 'Office Name A-Z',
+    nameDesc: 'Office Name Z-A',
+    reset: 'Reset Filters',
   },
   cars: {
     title: 'Cars Management',

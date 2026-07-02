@@ -147,6 +147,13 @@ const ar = {
     officeWithoutName: 'مكتب بدون اسم',
     duplicateCheckFailed: 'تعذر التحقق من الحسابات المكررة',
     duplicateTooltip: 'يوجد أكثر من حساب مسجل بنفس رقم السجل التجاري',
+    allCountries: 'كل الدول',
+    allCities: 'كل المدن',
+    newest: 'الأحدث',
+    oldest: 'الأقدم',
+    nameAsc: 'اسم المكتب A-Z',
+    nameDesc: 'اسم المكتب Z-A',
+    reset: 'إعادة تعيين',
   },
   cars: {
     title: 'إدارة السيارات',
