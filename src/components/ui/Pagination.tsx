@@ -22,22 +22,23 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
 
   const PrevIcon = dir === 'rtl' ? FiChevronRight : FiChevronLeft;
   const NextIcon = dir === 'rtl' ? FiChevronLeft : FiChevronRight;
+  const buttonBase = 'inline-flex h-9 items-center justify-center rounded-lg border border-gray-700 px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40';
 
   return (
-    <div className="flex items-center justify-center gap-2 mt-4">
+    <div className="flex flex-wrap items-center justify-center gap-2">
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage <= 1}
-        className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className={`${buttonBase} bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-white`}
       >
         <PrevIcon size={16} />
-        {t.common.previous}
+        <span className="ms-1 hidden sm:inline">{t.common.previous}</span>
       </button>
 
       {start > 1 && (
         <>
-          <button onClick={() => onPageChange(1)} className="rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors">1</button>
-          <span className="text-gray-600">...</span>
+          <button onClick={() => onPageChange(1)} className={`${buttonBase} bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-white`}>1</button>
+          <span className="px-1 text-gray-600">...</span>
         </>
       )}
 
@@ -45,8 +46,8 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
         <button
           key={page}
           onClick={() => onPageChange(page)}
-          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-            page === currentPage ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+          className={`${buttonBase} min-w-9 ${
+            page === currentPage ? 'border-blue-600 bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-white'
           }`}
         >
           {page}
@@ -55,17 +56,17 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
 
       {end < totalPages && (
         <>
-          <span className="text-gray-600">...</span>
-          <button onClick={() => onPageChange(totalPages)} className="rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors">{totalPages}</button>
+          <span className="px-1 text-gray-600">...</span>
+          <button onClick={() => onPageChange(totalPages)} className={`${buttonBase} bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-white`}>{totalPages}</button>
         </>
       )}
 
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages}
-        className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className={`${buttonBase} bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-white`}
       >
-        {t.common.next}
+        <span className="me-1 hidden sm:inline">{t.common.next}</span>
         <NextIcon size={16} />
       </button>
     </div>

@@ -19,10 +19,10 @@ import { FiDownload, FiRefreshCw, FiChevronUp, FiChevronDown, FiMinus, FiPrinter
 
 const CHART_COLORS = {
   pending: '#F59E0B',
-  accepted: '#10B981',
+  accepted: '#22C55E',
   rejected: '#EF4444',
-  users: '#3B82F6',
-  offices: '#8B5CF6',
+  users: '#2563EB',
+  offices: '#F59E0B',
 };
 
 function daysBetween(from: string, to: string): number {
@@ -56,8 +56,8 @@ function downloadCSV(filename: string, rows: string[][]) {
 
 function SectionCard({ title, children, className = '' }: { title?: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-gray-700 bg-gray-800/50 p-5 ${className}`}>
-      {title && <h3 className="mb-4 text-sm font-semibold text-gray-300">{title}</h3>}
+    <div className={`dashboard-card rounded-lg p-6 ${className}`}>
+      {title && <h3 className="mb-5 text-sm font-bold text-white">{title}</h3>}
       {children}
     </div>
   );
@@ -80,7 +80,7 @@ function SectionError({ onRetry }: { onRetry?: () => void }) {
 
 function SectionLoading() {
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-3 p-2">
       <Skeleton className="h-48 w-full" />
     </div>
   );
@@ -379,16 +379,16 @@ export default function EnhancedDashboardClient() {
   }, []);
 
   const chartTooltipStyle = {
-    contentStyle: { backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' },
-    labelStyle: { color: '#F3F4F6' },
+    contentStyle: { backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px' },
+    labelStyle: { color: 'var(--text-primary)' },
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:space-y-7">
       {/* Page Title & Last Update */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-white">{t.dashboard.title}</h1>
-        <span className="text-xs text-gray-500">{t.dashboard.lastUpdate}: {getLastUpdate()}</span>
+        <span className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs font-medium text-gray-500 shadow-sm">{t.dashboard.lastUpdate}: {getLastUpdate()}</span>
       </div>
 
       {/* Existing Stats Grid - unchanged */}
@@ -461,7 +461,7 @@ export default function EnhancedDashboardClient() {
             { label: t.dashboard.periodAcceptRate, value: periodKPIs.acceptRate.value, change: null },
             { label: t.dashboard.periodRejectRate, value: periodKPIs.rejectRate.value, change: null },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-xl border border-gray-700 bg-gray-800/30 p-3">
+            <div key={kpi.label} className="dashboard-card rounded-lg p-4">
               <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">{kpi.label}</p>
               <p className="mt-1 text-lg font-bold text-white">{kpi.value}</p>
               {kpi.change && kpi.change.direction !== 'na' && (
@@ -485,11 +485,11 @@ export default function EnhancedDashboardClient() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={requestsActivityData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickFormatter={(v) => v.slice(5)} />
-                <YAxis stroke="#9CA3AF" fontSize={11} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="date" stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => v.slice(5)} />
+                <YAxis stroke="var(--text-dim)" fontSize={11} />
                 <Tooltip {...chartTooltipStyle} />
-                <Legend formatter={(value) => <span style={{ color: '#D1D5DB' }}>{reqStatusLabels[value] || value}</span>} />
+                <Legend formatter={(value) => <span style={{ color: 'var(--text-secondary)' }}>{reqStatusLabels[value] || value}</span>} />
                 <Line type="monotone" dataKey="pending" stroke={CHART_COLORS.pending} strokeWidth={2} dot={false} name="pending" />
                 <Line type="monotone" dataKey="accepted" stroke={CHART_COLORS.accepted} strokeWidth={2} dot={false} name="accepted" />
                 <Line type="monotone" dataKey="rejected" stroke={CHART_COLORS.rejected} strokeWidth={2} dot={false} name="rejected" />
@@ -526,11 +526,11 @@ export default function EnhancedDashboardClient() {
                 );
               })}
               <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-700">
-                <div className="text-center">
+                <div className="dashboard-list-card rounded-lg p-3 text-center">
                   <p className="text-lg font-bold text-white">{((statusSummary.accepted / (statusSummary.total || 1)) * 100).toFixed(1)}%</p>
                   <p className="text-[10px] text-gray-500">{t.dashboard.periodAcceptRate}</p>
                 </div>
-                <div className="text-center">
+                <div className="dashboard-list-card rounded-lg p-3 text-center">
                   <p className="text-lg font-bold text-white">{((statusSummary.rejected / (statusSummary.total || 1)) * 100).toFixed(1)}%</p>
                   <p className="text-[10px] text-gray-500">{t.dashboard.periodRejectRate}</p>
                 </div>
@@ -545,12 +545,12 @@ export default function EnhancedDashboardClient() {
             <EmptyState title={t.dashboard.noDataEnough} />
           ) : (
             <>
-              <div className="flex gap-4 mb-4">
-                <div>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="dashboard-list-card rounded-lg p-3">
                   <p className="text-xs text-gray-500">{t.dashboard.periodNewUsers}</p>
                   <p className="text-lg font-bold text-white">{periodData?.newUsers.length || 0}</p>
                 </div>
-                <div>
+                <div className="dashboard-list-card rounded-lg p-3">
                   <p className="text-xs text-gray-500">{t.dashboard.periodNewOffices}</p>
                   <p className="text-lg font-bold text-white">{periodData?.newOffices.length || 0}</p>
                 </div>
@@ -558,11 +558,11 @@ export default function EnhancedDashboardClient() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={growthData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} tickFormatter={(v) => v.slice(5)} />
-                    <YAxis stroke="#9CA3AF" fontSize={11} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="date" stroke="var(--text-dim)" fontSize={11} tickFormatter={(v) => v.slice(5)} />
+                    <YAxis stroke="var(--text-dim)" fontSize={11} />
                     <Tooltip {...chartTooltipStyle} />
-                    <Legend formatter={(value) => <span style={{ color: '#D1D5DB' }}>{value === 'users' ? t.dashboard.periodNewUsers : t.dashboard.periodNewOffices}</span>} />
+                    <Legend formatter={(value) => <span style={{ color: 'var(--text-secondary)' }}>{value === 'users' ? t.dashboard.periodNewUsers : t.dashboard.periodNewOffices}</span>} />
                     <Bar dataKey="users" fill={CHART_COLORS.users} radius={[3, 3, 0, 0]} name="users" />
                     <Bar dataKey="offices" fill={CHART_COLORS.offices} radius={[3, 3, 0, 0]} name="offices" />
                   </BarChart>
@@ -580,17 +580,20 @@ export default function EnhancedDashboardClient() {
           {reviewLoading ? <SectionLoading /> : reviewError ? <SectionError onRetry={() => refetchReview()} /> : officesNeedingReview.length === 0 ? (
             <EmptyState title={t.dashboard.noDataEnough} />
           ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-3 max-h-80 overflow-y-auto pe-1">
               {officesNeedingReview.map((office) => (
-                <div key={office.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800/20 p-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white truncate">{office.office_name || t.offices.officeWithoutName}</p>
-                    <p className="text-xs text-gray-500">{office.country || office.city || ''} {office.phone_number ? `| ${office.phone_number}` : ''}</p>
+                <div key={office.id} className="dashboard-list-card flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="truncate text-sm font-bold text-white">{office.office_name || t.offices.officeWithoutName}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                      <span>{office.country || office.city || ''}</span>
+                      {office.phone_number && <span dir="ltr">{office.phone_number}</span>}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
                     <Badge variant="warning">{t.common.inactive}</Badge>
                     <Link href={`/offices/${office.id}/edit`}
-                      className="text-xs text-blue-400 hover:text-blue-300 transition-colors shrink-0"
+                      className="dashboard-action-link shrink-0"
                     >
                       {t.dashboard.viewOffice}
                     </Link>
@@ -606,21 +609,21 @@ export default function EnhancedDashboardClient() {
           {periodLoading ? <SectionLoading /> : periodError ? <SectionError onRetry={() => refetchPeriod()} /> : pendingRequestsNeedingAttention.length === 0 ? (
             <EmptyState title={t.dashboard.noDataEnough} />
           ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-3 max-h-80 overflow-y-auto pe-1">
               {pendingRequestsNeedingAttention.map((req) => {
                 const waitDays = daysBetween(req.created_at?.split('T')[0] || dateRange.from, dateRange.to);
                 return (
-                  <div key={req.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800/20 p-3">
+                  <div key={req.id} className="dashboard-list-card flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-white truncate font-mono text-xs">{req.id.slice(0, 8)}...</p>
+                      <p className="truncate font-mono text-xs font-bold text-white">{req.id.slice(0, 8)}...</p>
                       <p className="text-xs text-gray-500">
                         {t.dashboard.waitingSince} {req.created_at?.split('T')[0]} ({waitDays} {t.dashboard.days})
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
                       <Badge variant="warning">{t.dashboard.reqStatusPending}</Badge>
                       <Link href={`/requests/${req.id}`}
-                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors shrink-0"
+                        className="dashboard-action-link shrink-0"
                       >
                         {t.common.view}
                       </Link>
@@ -628,7 +631,7 @@ export default function EnhancedDashboardClient() {
                   </div>
                 );
               })}
-              <Link href="/requests" className="block text-center text-xs text-blue-400 hover:text-blue-300 pt-2 transition-colors">
+              <Link href="/requests" className="dashboard-action-link mx-auto mt-3 w-fit">
                 {t.dashboard.viewAllRequests}
               </Link>
             </div>
@@ -645,17 +648,17 @@ export default function EnhancedDashboardClient() {
           ) : (
             <>
               <p className="mb-3 text-[10px] text-gray-500">{t.dashboard.topOfficesBy}</p>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              <div className="space-y-3 max-h-80 overflow-y-auto pe-1">
                 {topOffices.slice(0, 10).map((office, idx) => (
-                  <div key={office.office_id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800/20 p-3">
+                  <div key={office.office_id} className="dashboard-list-card flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span className="text-xs font-bold text-gray-500 w-5 shrink-0">#{idx + 1}</span>
-                      <p className="text-sm font-medium text-white truncate">{office.office_name}</p>
+                      <p className="truncate text-sm font-bold text-white">{office.office_name}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
                       <Badge variant="info">{office.offerCount}</Badge>
                       <Link href={`/offices/${office.office_id}/edit`}
-                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors shrink-0"
+                        className="dashboard-action-link shrink-0"
                       >
                         {t.dashboard.viewOffice}
                       </Link>
@@ -672,13 +675,13 @@ export default function EnhancedDashboardClient() {
           {geoData.length === 0 ? (
             <EmptyState title={t.dashboard.noDataEnough} />
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto">
+            <div className="space-y-3 max-h-80 overflow-y-auto pe-1">
               {geoData.slice(0, 10).map((g) => {
                 const maxVal = Math.max(...geoData.slice(0, 10).map((x) => x.userCount + x.officeCount), 1);
                 const total = g.userCount + g.officeCount;
                 const pct = (total / maxVal) * 100;
                 return (
-                  <div key={g.country}>
+                  <div key={g.country} className="dashboard-list-card rounded-lg p-4">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm text-gray-300">{g.country}</span>
                       <span className="text-xs text-gray-500">

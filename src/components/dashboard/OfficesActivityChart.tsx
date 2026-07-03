@@ -7,7 +7,7 @@ interface OfficesActivityChartProps {
   data: { office_id: string; office_name: string; count: number }[];
 }
 
-const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'];
+const COLORS = ['#2563EB', '#F59E0B', '#22C55E', '#EF4444', '#06B6D4', '#64748B', '#14B8A6', '#F97316', '#6366F1', '#84CC16'];
 
 export function OfficesActivityChart({ data }: OfficesActivityChartProps) {
   const { t } = useTranslation();
@@ -18,8 +18,8 @@ export function OfficesActivityChart({ data }: OfficesActivityChartProps) {
   }));
 
   return (
-    <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
-      <h3 className="mb-4 text-sm font-semibold text-gray-300">{t.dashboard.officesActivity}</h3>
+    <div className="dashboard-card rounded-lg p-6">
+      <h3 className="mb-5 text-sm font-bold text-white">{t.dashboard.officesActivity}</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -29,8 +29,8 @@ export function OfficesActivityChart({ data }: OfficesActivityChartProps) {
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
-              labelStyle={{ color: '#F3F4F6' }}
+              contentStyle={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px' }}
+              labelStyle={{ color: 'var(--text-primary)' }}
             />
           </PieChart>
         </ResponsiveContainer>

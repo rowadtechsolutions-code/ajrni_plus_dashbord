@@ -23,21 +23,26 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   const sizeClasses = {
     sm: 'max-w-sm',
     md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full ${sizeClasses[size]} rounded-2xl bg-gray-900 border border-gray-700 shadow-2xl`}>
-        <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors">
-            <FiX size={20} />
+      <button
+        type="button"
+        className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Close modal"
+      />
+      <div className={`relative max-h-[90vh] w-full ${sizeClasses[size]} overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-2xl`}>
+        <div className="flex items-center justify-between gap-4 border-b border-gray-700 px-5 py-4">
+          <h2 className="min-w-0 truncate text-lg font-bold text-white">{title}</h2>
+          <button onClick={onClose} className="shrink-0 rounded-lg border border-gray-700 bg-gray-800 p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white">
+            <FiX size={18} />
           </button>
         </div>
-        <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
+        <div className="max-h-[calc(90vh-73px)] overflow-y-auto px-5 py-5">
           {children}
         </div>
       </div>

@@ -24,31 +24,48 @@ export function ConfirmDialog({
   if (!isOpen) return null;
 
   const colors = {
-    danger: { bg: 'bg-red-600 hover:bg-red-700', icon: 'text-red-400', border: 'border-red-500/20' },
-    warning: { bg: 'bg-amber-600 hover:bg-amber-700', icon: 'text-amber-400', border: 'border-amber-500/20' },
-    info: { bg: 'bg-blue-600 hover:bg-blue-700', icon: 'text-blue-500', border: 'border-blue-600/20' },
+    danger: {
+      button: 'bg-red-600 hover:bg-red-700',
+      icon: 'text-red-500 bg-red-500/10 border-red-500/20',
+      border: 'border-red-500/25',
+    },
+    warning: {
+      button: 'bg-amber-600 hover:bg-amber-700',
+      icon: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+      border: 'border-amber-500/25',
+    },
+    info: {
+      button: 'bg-blue-600 hover:bg-blue-700',
+      icon: 'text-blue-500 bg-blue-600/10 border-blue-600/20',
+      border: 'border-blue-600/25',
+    },
   };
 
   const c = colors[variant];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full max-w-sm rounded-2xl bg-gray-900 border ${c.border} shadow-2xl p-6`}>
-        <button onClick={onClose} className="absolute top-4 end-4 text-gray-500 hover:text-white">
+      <button
+        type="button"
+        className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Close dialog"
+      />
+      <div className={`relative w-full max-w-sm rounded-lg border ${c.border} bg-gray-900 p-6 shadow-2xl`}>
+        <button onClick={onClose} className="absolute end-4 top-4 rounded-lg p-1 text-gray-500 transition-colors hover:bg-gray-800 hover:text-white">
           <FiX size={18} />
         </button>
         <div className="flex flex-col items-center text-center">
-          <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full ${c.icon} bg-gray-800 text-2xl`}>
-            <FiAlertTriangle size={28} />
+          <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full border ${c.icon}`}>
+            <FiAlertTriangle size={26} />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-          <p className="text-sm text-gray-400 mb-6">{message}</p>
-          <div className="flex gap-3 w-full">
-            <button onClick={onClose} disabled={loading} className="flex-1 rounded-xl bg-gray-800 py-2.5 text-sm font-medium text-gray-300 hover:bg-gray-700 disabled:opacity-50 transition-colors">
+          <h3 className="mb-2 text-lg font-bold text-white">{title}</h3>
+          <p className="mb-6 text-sm leading-6 text-gray-400">{message}</p>
+          <div className="grid w-full grid-cols-2 gap-3">
+            <button onClick={onClose} disabled={loading} className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-700 hover:text-white disabled:opacity-50">
               {cancelText || t.common.cancel}
             </button>
-            <button onClick={onConfirm} disabled={loading} className={`flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50 transition-colors ${c.bg}`}>
+            <button onClick={onConfirm} disabled={loading} className={`rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 ${c.button}`}>
               {loading ? t.common.loading : (confirmText || t.common.confirm)}
             </button>
           </div>

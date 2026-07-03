@@ -11,19 +11,19 @@ export function CarsByBrandChart({ data }: CarsByBrandChartProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="rounded-2xl border border-gray-700 bg-gray-800/50 p-5">
-      <h3 className="mb-4 text-sm font-semibold text-gray-300">{t.dashboard.carsByBrand}</h3>
+    <div className="dashboard-card rounded-lg p-6">
+      <h3 className="mb-5 text-sm font-bold text-white">{t.dashboard.carsByBrand}</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="brand" stroke="#9CA3AF" fontSize={12} />
-            <YAxis stroke="#9CA3AF" fontSize={12} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+            <XAxis dataKey="brand" stroke="var(--text-dim)" fontSize={12} />
+            <YAxis stroke="var(--text-dim)" fontSize={12} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
-              labelStyle={{ color: '#F3F4F6' }}
+              contentStyle={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px' }}
+              labelStyle={{ color: 'var(--text-primary)' }}
             />
-            <Bar dataKey="count" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="count" fill="#F59E0B" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
