@@ -8,6 +8,32 @@ export interface User {
   city: string;
 }
 
+export interface Country {
+  id: string;
+  created_at: string;
+  name_ar: string;
+  name_en: string;
+  code: string;
+  phone_code: string;
+  currency_code: string;
+  flag_emoji: string;
+  is_active: boolean;
+  sort_order: number;
+  updated_at: string;
+  cities?: City[];
+}
+
+export interface City {
+  id: string;
+  created_at: string;
+  country_id: string;
+  name_ar: string;
+  name_en: string;
+  is_active: boolean;
+  sort_order: number;
+  updated_at: string;
+}
+
 export interface Office {
   id: string;
   created_at: string;
@@ -16,6 +42,8 @@ export interface Office {
   phone_number: string;
   country: string;
   city: string;
+  country_id?: string;
+  city_id?: string;
   is_active: boolean;
   bio: string;
   image: string;
@@ -132,6 +160,12 @@ export interface DuplicateOfficeInfo {
 export interface ApiError {
   message: string;
   status: number;
+  details?: unknown;
+  config?: {
+    url?: string;
+    method?: string;
+    headers?: Record<string, string>;
+  };
 }
 
 export type SortDirection = 'asc' | 'desc';

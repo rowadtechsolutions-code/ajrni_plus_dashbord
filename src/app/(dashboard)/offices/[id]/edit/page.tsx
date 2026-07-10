@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@/i18n/provider';
 import { officesService } from '@/services/offices.service';
+import { countriesService } from '@/services/countries.service';
+import { citiesService } from '@/services/cities.service';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ImageUpload } from '@/components/ui/ImageUpload';
-import { gulfCountries } from '@/data/gulf';
 import type { Office } from '@/types';
 import { FiArrowLeft } from 'react-icons/fi';
 
@@ -25,25 +26,34 @@ export default function EditOfficePage() {
     enabled: !!params.id,
   });
 
+  const { data: countries = [] } = useQuery({
+    queryKey: ['countries-active'],
+    queryFn: () => countriesService.getAllActive(),
+    staleTime: 60000,
+  });
+
   const [form, setForm] = useState<Partial<Office> | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const currentForm = form ?? office ?? null;
+  const editingCountryId = currentForm?.country_id || '';
 
-  const cities = useMemo(() => {
-    const country = gulfCountries.find((c) => c.code === currentForm?.country || c.ar === currentForm?.country || c.en === currentForm?.country);
-    return country?.cities || [];
-  }, [currentForm?.country]);
+  const { data: cities = [], isLoading: citiesLoading } = useQuery({
+    queryKey: ['cities-by-country', editingCountryId],
+    queryFn: () => editingCountryId ? citiesService.getByCountry(editingCountryId) : Promise.resolve([]),
+    enabled: !!editingCountryId,
+  });
 
-  const REQUIRED = ['office_name', 'email', 'phone_number', 'country', 'city'];
+  const REQUIRED = ['office_name', 'email', 'phone_number', 'country_id', 'city_id'];
 
   const validate = () => {
     const errs: Record<string, string> = {};
     const target = form ?? office ?? null;
     for (const key of REQUIRED) {
-      if (!(target as any)?.[key]?.toString().trim()) {
-        errs[key] = 'هذا الحقل مطلوب';
+      const val = (target as any)?.[key]?.toString().trim();
+      if (!val) {
+        errs[key.replace('_id', '')] = 'هذا الحقل مطلوب';
       }
     }
     setErrors(errs);
@@ -55,7 +65,16 @@ export default function EditOfficePage() {
   };
 
   const updateMutation = useMutation({
-    mutationFn: () => officesService.update(params.id as string, form ?? office!),
+    mutationFn: async () => {
+      const payload = form ?? office!;
+      const selectedCountry = countries.find((c) => c.id === payload.country_id);
+      const selectedCity = cities.find((c) => c.id === payload.city_id);
+      return officesService.update(params.id as string, {
+        ...payload,
+        country: selectedCountry?.name_ar || payload.country,
+        city: selectedCity?.name_ar || payload.city,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offices'] });
       showToast(t.common.edit + ' ' + t.common.success, 'success');
@@ -66,8 +85,8 @@ export default function EditOfficePage() {
 
   const handleChange = (key: string, value: string | boolean) => {
     setForm((prev) => ({ ...(prev || office || {}), [key]: value } as Partial<Office>));
-    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: '' }));
-    if (key === 'country') setForm((prev) => ({ ...(prev || office || {}), [key]: value, city: '' } as Partial<Office>));
+    if (errors[key.replace('_id', '')]) setErrors((prev) => ({ ...prev, [key.replace('_id', '')]: '' }));
+    if (key === 'country_id') setForm((prev) => ({ ...(prev || office || {}), country_id: value as string, city_id: '', city: '' } as Partial<Office>));
   };
 
   if (isLoading) return <div className="text-gray-400">{t.common.loading}</div>;
@@ -101,22 +120,29 @@ export default function EditOfficePage() {
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">{t.offices.country} <span className="text-red-400">*</span></label>
-            <select value={display.country || ''} onChange={(e) => handleChange('country', e.target.value)} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.country ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
+            <select value={display.country_id || ''} onChange={(e) => handleChange('country_id', e.target.value)} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.country ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
               <option value="">-- اختر الدولة --</option>
-              {gulfCountries.map((c) => (
-                <option key={c.code} value={c.code}>{c.ar}</option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>{c.name_ar} - {c.name_en}</option>
               ))}
             </select>
+            {!display.country_id && display.country && <p className="mt-1 text-xs text-amber-400">القيمة القديمة: {display.country}</p>}
             {errors.country && <p className="mt-1 text-xs text-red-400">{errors.country}</p>}
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">{t.offices.city} <span className="text-red-400">*</span></label>
-            <select value={display.city || ''} onChange={(e) => handleChange('city', e.target.value)} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.city ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
-              <option value="">-- اختر المدينة --</option>
+            <select
+              value={display.city_id || ''}
+              onChange={(e) => handleChange('city_id', e.target.value)}
+              disabled={!display.country_id || citiesLoading}
+              className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.city ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <option value="">{!display.country_id ? '-- اختر الدولة أولاً --' : citiesLoading ? 'جارٍ التحميل...' : cities.length === 0 ? '-- لا توجد مدن --' : '-- اختر المدينة --'}</option>
               {cities.map((ct) => (
-                <option key={ct.en} value={ct.ar}>{ct.ar}</option>
+                <option key={ct.id} value={ct.id}>{ct.name_ar} - {ct.name_en}</option>
               ))}
             </select>
+            {!display.city_id && display.city && <p className="mt-1 text-xs text-amber-400">القيمة القديمة: {display.city}</p>}
             {errors.city && <p className="mt-1 text-xs text-red-400">{errors.city}</p>}
           </div>
           <div className="col-span-2">

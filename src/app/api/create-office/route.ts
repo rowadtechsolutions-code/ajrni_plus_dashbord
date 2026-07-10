@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { password, image, cover, bio, commercial_registration_number, is_active, id, ...officeMeta } = body;
+    const { password, image, cover, bio, commercial_registration_number, is_active, id, country_id, city_id, ...officeMeta } = body;
 
     if (!officeMeta.email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -39,6 +39,8 @@ export async function POST(req: Request) {
           phone: officeMeta.phone_number,
           country: officeMeta.country,
           city: officeMeta.city,
+          country_id: country_id || null,
+          city_id: city_id || null,
         },
       });
 
@@ -98,6 +100,8 @@ export async function POST(req: Request) {
           phone_number: officeMeta.phone_number,
           country: officeMeta.country,
           city: officeMeta.city,
+          country_id: country_id || null,
+          city_id: city_id || null,
           is_active: is_active ?? false,
           image: finalImage || null,
           cover: finalCover || null,
