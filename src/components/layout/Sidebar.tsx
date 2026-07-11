@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiBell, FiBriefcase, FiFileText, FiGift, FiGlobe, FiGrid, FiHeart, FiImage, FiLogOut, FiSettings, FiTruck, FiUsers, FiX } from 'react-icons/fi';
+import { FiBell, FiBriefcase, FiFileText, FiGift, FiGlobe, FiGrid, FiHeart, FiImage, FiLogOut, FiSettings, FiSmartphone, FiTruck, FiUsers, FiX } from 'react-icons/fi';
 import { useTranslation } from '@/i18n/provider';
 import { useAuth } from '@/context/AuthContext';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -20,6 +20,7 @@ const navItems = [
   { href: '/banners', icon: FiImage, labelKey: 'banners' },
   { href: '/notifications', icon: FiBell, labelKey: 'notifications' },
   { href: '/countries', icon: FiGlobe, labelKey: 'countries' },
+  { href: '/app-versions', icon: FiSmartphone, labelKey: 'appVersions' },
   { href: '/settings', icon: FiSettings, labelKey: 'settings' },
 ];
 

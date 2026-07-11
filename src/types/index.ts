@@ -193,3 +193,14 @@ export interface Admin {
   is_active: boolean;
   last_login: string | null;
 }
+
+export interface AppVersion {
+  platform: 'android' | 'ios';
+  minimum_version: string;
+  latest_version: string;
+  minimum_build: number;
+  latest_build: number;
+  force_update: boolean;
+  store_url: string;
+  updated_at: string;
+}

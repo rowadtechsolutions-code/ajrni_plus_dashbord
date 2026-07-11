@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.access_token && session.user) {
-        localStorage.setItem('supabase_session', JSON.stringify({ access_token: session.access_token }));
+        localStorage.setItem('supabase_session', JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }));
         const adminData = await fetchAdmin(session.user.id);
 
         if (!adminData) {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.access_token) {
-        localStorage.setItem('supabase_session', JSON.stringify({ access_token: session.access_token }));
+        localStorage.setItem('supabase_session', JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }));
       } else {
         localStorage.removeItem('supabase_session');
         setAdmin(null);
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    localStorage.setItem('supabase_session', JSON.stringify({ access_token: data.session.access_token }));
+    localStorage.setItem('supabase_session', JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token }));
 
     const adminData = await fetchAdmin(data.user.id);
     if (!adminData) {
