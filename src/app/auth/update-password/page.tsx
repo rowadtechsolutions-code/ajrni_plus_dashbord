@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from "react";
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
@@ -8,7 +9,17 @@ import Link from 'next/link';
 
 type PageState = 'checking' | 'expired' | 'user_deleted' | 'session_stale' | 'ready' | 'saving' | 'done';
 
-export default function UpdatePasswordPage() {
+function UpdatePasswordLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-950 p-4">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-700 border-t-blue-600" />
+        <p className="text-sm text-gray-400">جارٍ التحقق من الرابط...</p>
+      </div>
+    </div>
+  );
+}
+function UpdatePasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pageState, setPageState] = useState<PageState>('checking');
@@ -362,5 +373,12 @@ export default function UpdatePasswordPage() {
         </form>
       </div>
     </div>
+  );
+}
+export default function UpdatePasswordPage() {
+  return (
+    <Suspense fallback={<UpdatePasswordLoading />}>
+      <UpdatePasswordContent />
+    </Suspense>
   );
 }
