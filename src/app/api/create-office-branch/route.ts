@@ -4,6 +4,21 @@ import { getAdminClient, extractAdminFromRequest } from '@/lib/supabase/admin';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+function logSupabaseError(label: string, error: SupabaseErrorLike | null) {
+  console.error(label, {
+    code: error?.code,
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+  });
+}
 export async function POST(req: Request) {
   try {
     const admin = await extractAdminFromRequest(req);
@@ -240,6 +255,7 @@ export async function POST(req: Request) {
       .single();
 
     if (officeInsertError || !officeRecord) {
+      logSupabaseError('[create-office-branch] step 10 Supabase error', officeInsertError);
       console.error('[create-office-branch] step 10 FAILED', {
         error: officeInsertError ? JSON.stringify(officeInsertError) : 'No record returned',
         payload: JSON.stringify(linkedOfficePayload),
@@ -272,18 +288,28 @@ export async function POST(req: Request) {
       country: country || null,
       city: city || null,
       is_active: false,
-      bio: bio?.trim() || null,
-      image: image || null,
-      cover: cover || null,
     };
 
     const { data: branchRecord, error: branchInsertError } = await supabaseAdmin
       .from('OfficeBranches')
       .insert(branchPayload)
-      .select()
+      .select(`
+        id,
+        created_at,
+        parent_office_id,
+        branch_name,
+        email,
+        phone_number,
+        country,
+        city,
+        auth_user_id,
+        linked_office_id,
+        is_active
+      `)
       .single();
 
     if (branchInsertError || !branchRecord) {
+      logSupabaseError('[create-office-branch] step 11 Supabase error', branchInsertError);
       console.error('[create-office-branch] step 11 FAILED', {
         error: branchInsertError ? JSON.stringify(branchInsertError) : 'No record returned',
         payload: JSON.stringify(branchPayload),
