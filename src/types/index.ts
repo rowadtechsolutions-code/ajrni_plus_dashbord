@@ -194,6 +194,47 @@ export interface Admin {
   last_login: string | null;
 }
 
+export interface OfficeSummary {
+  id: string;
+  office_name: string | null;
+  commercial_registration_number: string | null;
+  country: string | null;
+  city: string | null;
+  bio: string | null;
+  image: string | null;
+  cover: string | null;
+  is_active: boolean | null;
+}
+
+export interface OfficeBranch {
+  id: string;
+  created_at: string;
+  parent_office_id: string;
+  branch_name: string;
+  email: string | null;
+  phone_number: string | null;
+  country: string | null;
+  city: string | null;
+  auth_user_id: string | null;
+  linked_office_id: string | null;
+  is_active: boolean;
+  parent_office?: OfficeSummary | null;
+  linked_office?: OfficeSummary | null;
+}
+
+export interface OfficeBranchFormValues {
+  parent_office_id: string;
+  branch_name: string;
+  email: string;
+  phone_number?: string;
+  country: string;
+  city: string;
+  is_active: boolean;
+  bio?: string;
+  image?: string | null;
+  cover?: string | null;
+}
+
 export interface AppVersion {
   platform: 'android' | 'ios';
   minimum_version: string;

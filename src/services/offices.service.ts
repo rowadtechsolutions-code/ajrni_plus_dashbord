@@ -1,5 +1,6 @@
 import apiClient from '@/lib/api/axios';
 import type { Office, DuplicateOfficeInfo } from '@/types';
+import { getBranchLinkedOfficeIds } from './branch-utils.service';
 
 export interface OfficesQueryParams {
   page?: number;
@@ -17,6 +18,11 @@ export const officesService = {
     const query: Record<string, string> = {
       select: '*',
     };
+
+    const branchIds = await getBranchLinkedOfficeIds();
+    if (branchIds.length > 0) {
+      query.id = `not.in.(${branchIds.join(',')})`;
+    }
 
     if (params?.limit) {
       query.limit = String(params.limit);
@@ -60,14 +66,16 @@ export const officesService = {
   },
 
   async create(data: Partial<Office>): Promise<Office> {
-    const res = await apiClient.post<Office>('/Offices', data, {
+    const { country_id, city_id, ...cleanData } = data;
+    const res = await apiClient.post<Office>('/Offices', cleanData, {
       headers: { Prefer: 'return=representation' },
     });
     return res.data;
   },
 
   async update(id: string, data: Partial<Office>): Promise<Office> {
-    const res = await apiClient.patch<Office[]>(`/Offices?id=eq.${id}`, data, {
+    const { country_id, city_id, ...cleanData } = data;
+    const res = await apiClient.patch<Office[]>(`/Offices?id=eq.${id}`, cleanData, {
       headers: { Prefer: 'return=representation' },
     });
     return res.data[0];

@@ -100,8 +100,6 @@ export async function POST(req: Request) {
           phone_number: officeMeta.phone_number,
           country: officeMeta.country,
           city: officeMeta.city,
-          country_id: country_id || null,
-          city_id: city_id || null,
           is_active: is_active ?? false,
           image: finalImage || null,
           cover: finalCover || null,

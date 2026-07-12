@@ -34,8 +34,10 @@ export default function OfficeLoginPage() {
       }
 
       localStorage.setItem('office_session', JSON.stringify({
+        accountType: data.accountType,
         access_token: data.session.access_token,
-        office: data.office,
+        office: data.office || null,
+        branch: data.branch || null,
       }));
 
       router.push('/office');

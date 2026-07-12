@@ -67,10 +67,11 @@ export default function EditOfficePage() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       const payload = form ?? office!;
-      const selectedCountry = countries.find((c) => c.id === payload.country_id);
-      const selectedCity = cities.find((c) => c.id === payload.city_id);
+      const { country_id, city_id, ...cleanPayload } = payload;
+      const selectedCountry = countries.find((c) => c.id === country_id);
+      const selectedCity = cities.find((c) => c.id === city_id);
       return officesService.update(params.id as string, {
-        ...payload,
+        ...cleanPayload,
         country: selectedCountry?.name_ar || payload.country,
         city: selectedCity?.name_ar || payload.city,
       });

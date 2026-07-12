@@ -1,5 +1,6 @@
 import apiClient from '@/lib/api/axios';
 import type { Car, BookingRequest } from '@/types';
+import { getBranchLinkedOfficeIds, getActiveBranchesCount } from './branch-utils.service';
 
 function getCountFromContentRange(contentRange?: string): number | null {
   const total = contentRange?.split('/')[1];
@@ -61,15 +62,23 @@ export const analyticsService = {
     pendingRequests: number;
     offersCount: number;
     favoritesCount: number;
+    activeBranches: number;
   }> {
-    const [totalUsers, totalOffices, totalCars, activeCars, pendingRequests, offersCount, favoritesCount] = await Promise.all([
+    const branchIds = await getBranchLinkedOfficeIds();
+    const officeFilters: Record<string, string> = {};
+    if (branchIds.length > 0) {
+      officeFilters.id = `not.in.(${branchIds.join(',')})`;
+    }
+
+    const [totalUsers, totalOffices, totalCars, activeCars, pendingRequests, offersCount, favoritesCount, activeBranches] = await Promise.all([
       safeCountRows('/Users'),
-      safeCountRows('/Offices'),
+      safeCountRows('/Offices', officeFilters),
       safeCountRows('/cars'),
       safeCountRows('/cars', { is_active: 'eq.true' }),
       safeCountRows('/BookingRequests', { status: 'eq.pending' }),
       safeCountRows('/BookingOffers'),
       safeCountRows('/Favorites'),
+      getActiveBranchesCount(),
     ]);
 
     return {
@@ -80,6 +89,7 @@ export const analyticsService = {
       pendingRequests,
       offersCount,
       favoritesCount,
+      activeBranches,
     };
   },
 

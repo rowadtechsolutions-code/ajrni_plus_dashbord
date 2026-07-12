@@ -1,5 +1,6 @@
 import apiClient from '@/lib/api/axios';
 import { normalizeCommercialReg } from './offices.service';
+import { getBranchLinkedOfficeIds } from './branch-utils.service';
 
 interface PeriodRow {
   id: string;
@@ -144,7 +145,7 @@ export const analyticsEnhancedService = {
   async getPeriodData(fromDate: string, toDate: string): Promise<PeriodAnalyticsData> {
     const { prevFrom, prevTo } = getDateRange(fromDate, toDate);
 
-    const [bookingRequests, prevBookingRequests, newUsers, prevNewUsers, newOffices, prevNewOffices, newCars, prevNewCars] =
+    const [bookingRequests, prevBookingRequests, newUsers, prevNewUsers, rawNewOffices, rawPrevNewOffices, newCars, prevNewCars] =
       await Promise.all([
         fetchRowsInPeriod<PeriodBookingRequest>('/BookingRequests', REQUEST_SELECT, fromDate, toDate),
         fetchRowsInPeriod<PeriodBookingRequest>('/BookingRequests', REQUEST_SELECT, prevFrom, prevTo),
@@ -156,11 +157,19 @@ export const analyticsEnhancedService = {
         fetchRowsInPeriod<PeriodRow>('/cars', BASE_SELECT, prevFrom, prevTo),
       ]);
 
+    const branchIds = await getBranchLinkedOfficeIds();
+    const branchSet = new Set(branchIds);
+    const newOffices = rawNewOffices.filter((o) => !branchSet.has(o.id));
+    const prevNewOffices = rawPrevNewOffices.filter((o) => !branchSet.has(o.id));
+
     return { bookingRequests, prevBookingRequests, newUsers, prevNewUsers, newOffices, prevNewOffices, newCars, prevNewCars };
   },
 
   async getAllOfficesForReview(): Promise<{ offices: ReviewOffice[]; duplicateGroups: Map<string, ReviewOffice[]> }> {
-    const offices = await fetchRowsFiltered<ReviewOffice>('/Offices', OFFICE_FULL_SELECT);
+    const allOffices = await fetchRowsFiltered<ReviewOffice>('/Offices', OFFICE_FULL_SELECT);
+    const branchIds = await getBranchLinkedOfficeIds();
+    const branchSet = new Set(branchIds);
+    const offices = allOffices.filter((o) => !branchSet.has(o.id));
 
     const duplicateMap = new Map<string, ReviewOffice[]>();
     for (const office of offices) {
@@ -205,10 +214,13 @@ export const analyticsEnhancedService = {
 
   async getGeoDistribution(): Promise<GeoEntry[]> {
     try {
-      const [users, offices] = await Promise.all([
+      const [users, rawOffices] = await Promise.all([
         fetchRowsFiltered<{ country?: string }>('/Users', 'country'),
-        fetchRowsFiltered<{ country?: string }>('/Offices', 'country'),
+        fetchRowsFiltered<{ id: string; country?: string }>('/Offices', 'id,country'),
       ]);
+      const branchIds = await getBranchLinkedOfficeIds();
+      const branchSet = new Set(branchIds);
+      const offices = rawOffices.filter((o) => !branchSet.has(o.id));
 
       const userMap = new Map<string, number>();
       const officeMap = new Map<string, number>();
