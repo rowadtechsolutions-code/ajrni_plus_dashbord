@@ -1,5 +1,14 @@
 import { supabase, ensureSession, getAuthToken } from '@/lib/supabase/client';
-import type { OfficeBranch, OfficeSummary, OfficeBranchFormValues, Country, City } from '@/types';
+import {
+  applyAdminScopeToSupabaseQuery,
+  canBypassAdminScope,
+  recordMatchesAdminScope,
+  SCOPE_DENY_UUID,
+  type AdminScopeSource,
+  type ResolvedAdminScope,
+} from '@/lib/admin-scope';
+import type { OfficeBranch, OfficeSummary, OfficeBranchFormValues } from '@/types';
+import { getCurrentAdminScope, resolveAdminScopeForAdmin } from './admin-scope.service';
 
 function mapBranch(raw: Record<string, unknown>): OfficeBranch {
   const parentOffice = Array.isArray(raw.parent_office)
@@ -13,7 +22,7 @@ function mapBranch(raw: Record<string, unknown>): OfficeBranch {
 }
 
 async function ensureAdminSession(): Promise<string> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
   let currentSession = session;
   if (!currentSession) {
     const restored = await ensureSession();
@@ -22,12 +31,7 @@ async function ensureAdminSession(): Promise<string> {
   }
   const adminId = currentSession.user?.id;
   if (!adminId) throw new Error('admin_session_required');
-  const { data: adminData } = await supabase
-    .from('Admins')
-    .select('id')
-    .eq('id', adminId)
-    .maybeSingle();
-  if (!adminData) throw new Error('admin_session_required');
+  await getCurrentAdminScope();
   return adminId;
 }
 
@@ -80,17 +84,60 @@ const headersWithAuth = () => {
   };
 };
 
-const handleError = (res: Response, result: any) => {
+
+type ApiErrorResult = { message?: string; code?: string; rolledBack?: boolean; debug?: unknown };
+
+const handleError = (res: Response, result: ApiErrorResult) => {
   const error = new Error(result.message || 'Unknown error') as Error & {
     code?: string;
     rolledBack?: boolean;
-    debug?: string;
+    debug?: unknown;
   };
   error.code = result.code || '';
   error.rolledBack = result.rolledBack;
   error.debug = result.debug || '';
   throw error;
 };
+
+async function getScopeForAdmin(currentAdmin?: AdminScopeSource | null): Promise<ResolvedAdminScope> {
+  if (!currentAdmin) throw new Error('admin_scope_required');
+  return resolveAdminScopeForAdmin(currentAdmin);
+}
+
+async function getScopedLinkedOfficeIds(scope: ResolvedAdminScope): Promise<string[] | null> {
+  if (canBypassAdminScope(scope)) return null;
+  if (scope.denyAccess) return [];
+
+  let query = supabase
+    .from('Offices')
+    .select('id');
+
+  if (scope.countryCode) query = query.eq('country', scope.countryCode);
+  if (scope.data_scope === 'city' && scope.cityValue) query = query.eq('city', scope.cityValue);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return [...new Set(((data || []) as { id: string }[]).map((office) => office.id).filter(Boolean))];
+}
+
+function applyLinkedOfficeScope<TQuery extends { in: (field: string, values: string[]) => TQuery; eq: (field: string, value: unknown) => TQuery }>(
+  query: TQuery,
+  linkedOfficeIds: string[] | null,
+): TQuery {
+  if (linkedOfficeIds === null) return query;
+  if (linkedOfficeIds.length === 0) return query.eq('linked_office_id', SCOPE_DENY_UUID);
+  return query.in('linked_office_id', linkedOfficeIds);
+}
+
+function assertBranchInsideScope(scope: ResolvedAdminScope, branch: OfficeBranch): void {
+  const record = branch.linked_office || { country: branch.country, city: branch.city };
+  if (!recordMatchesAdminScope(scope, record)) {
+    throw Object.assign(new Error('Branch is outside admin data scope'), {
+      status: 403,
+      code: 'outside_admin_scope',
+    });
+  }
+}
 
 export const officeBranchesService = {
   async list(params?: {
@@ -103,10 +150,16 @@ export const officeBranchesService = {
     city?: string;
     sort?: string;
     order?: 'asc' | 'desc';
+    currentAdmin?: AdminScopeSource | null;
   }): Promise<{ data: OfficeBranch[]; count: number }> {
+    const scope = await getScopeForAdmin(params?.currentAdmin);
+    const linkedOfficeIds = await getScopedLinkedOfficeIds(scope);
+
     let query = supabase
       .from('OfficeBranches')
       .select(BRANCH_SELECT, { count: 'exact' });
+
+    query = applyLinkedOfficeScope(query, linkedOfficeIds);
 
     if (params?.search) {
       const sq = params.search;
@@ -166,6 +219,7 @@ export const officeBranchesService = {
   },
 
   async getById(id: string): Promise<OfficeBranch> {
+    const scope = await getCurrentAdminScope();
     const { data, error } = await supabase
       .from('OfficeBranches')
       .select(BRANCH_SELECT)
@@ -174,7 +228,9 @@ export const officeBranchesService = {
 
     if (error) throw error;
     if (!data) throw new Error('not_found');
-    return mapBranch(data as Record<string, unknown>);
+    const branch = mapBranch(data as Record<string, unknown>);
+    assertBranchInsideScope(scope, branch);
+    return branch;
   },
 
   async create(payload: OfficeBranchFormValues): Promise<OfficeBranch> {
@@ -204,7 +260,7 @@ export const officeBranchesService = {
       const error = new Error(result.message || 'Failed to create branch') as Error & {
         code?: string;
         rolledBack?: boolean;
-        debug?: string;
+        debug?: unknown;
       };
       error.code = result.code || '';
       error.rolledBack = result.rolledBack;
@@ -268,7 +324,6 @@ export const officeBranchesService = {
       handleError(res, result);
     }
 
-    // Re-fetch the updated branch
     return officeBranchesService.getById(id);
   },
 
@@ -289,7 +344,8 @@ export const officeBranchesService = {
   },
 
   async getOfficesForBranchSelect(): Promise<OfficeSummary[]> {
-    const { data, error } = await supabase
+    const scope = await getCurrentAdminScope();
+    let query = supabase
       .from('Offices')
       .select(`
         id,
@@ -300,14 +356,19 @@ export const officeBranchesService = {
         image,
         is_active
       `)
-      .order('office_name', { ascending: true });
+      .eq('is_sub_branch', false);
+
+    query = applyAdminScopeToSupabaseQuery(query, scope);
+    const { data, error } = await query.order('office_name', { ascending: true });
 
     if (error) throw error;
     return (data as OfficeSummary[]) || [];
   },
 
   async getBranchesByOfficeId(officeId: string): Promise<OfficeBranch[]> {
-    const { data, error } = await supabase
+    const scope = await getCurrentAdminScope();
+    const linkedOfficeIds = await getScopedLinkedOfficeIds(scope);
+    let query = supabase
       .from('OfficeBranches')
       .select(`
         id,
@@ -322,17 +383,25 @@ export const officeBranchesService = {
         linked_office_id,
         is_active
       `)
-      .eq('parent_office_id', officeId)
-      .order('created_at', { ascending: false });
+      .eq('parent_office_id', officeId);
+
+    query = applyLinkedOfficeScope(query, linkedOfficeIds);
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) throw error;
     return (data as OfficeBranch[]) || [];
   },
 
-  async getStats(): Promise<{ total: number; active: number; inactive: number; officesWithBranches: number }> {
-    const { data } = await supabase
+  async getStats(currentAdmin?: AdminScopeSource | null): Promise<{ total: number; active: number; inactive: number; officesWithBranches: number }> {
+    const scope = await getScopeForAdmin(currentAdmin);
+    const linkedOfficeIds = await getScopedLinkedOfficeIds(scope);
+    let query = supabase
       .from('OfficeBranches')
-      .select('id, is_active, parent_office_id');
+      .select('id, is_active, parent_office_id, linked_office_id');
+
+    query = applyLinkedOfficeScope(query, linkedOfficeIds);
+    const { data, error } = await query;
+    if (error) throw error;
 
     const list = data || [];
     return {

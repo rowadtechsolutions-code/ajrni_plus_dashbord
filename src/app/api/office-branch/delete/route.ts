@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminClient, extractAdminFromRequest } from '@/lib/supabase/admin';
+import { getAdminClient, extractAdminFromRequest, isOfficeInsideAdminScope } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
@@ -34,6 +34,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const insideScope = await isOfficeInsideAdminScope(admin, branch.linked_office_id, supabaseAdmin);
+    if (!insideScope) {
+      return NextResponse.json(
+        { code: 'outside_admin_scope', message: 'Record is outside admin data scope.' },
+        { status: 403 },
+      );
+    }
     const { auth_user_id: authUserId, linked_office_id: linkedOfficeId } = branch;
 
     // ---- Check for linked operational data ----
@@ -108,9 +115,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { code: 'internal_error', message: err.message || 'Internal error' },
+      { code: 'internal_error', message: err instanceof Error ? err.message : 'Internal error' },
       { status: 500 },
     );
   }

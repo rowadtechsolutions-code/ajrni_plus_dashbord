@@ -45,6 +45,7 @@ export interface Office {
   country_id?: string;
   city_id?: string;
   is_active: boolean;
+  is_sub_branch?: boolean | null;
   bio: string;
   image: string;
   cover: string;
@@ -191,6 +192,9 @@ export interface Admin {
   email: string;
   role: 'super_admin' | 'admin';
   is_active: boolean;
+  data_scope: 'global' | 'country' | 'city' | null;
+  country_id: string | null;
+  city_id: string | null;
   last_login: string | null;
 }
 

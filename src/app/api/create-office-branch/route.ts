@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getAdminClient, extractAdminFromRequest } from '@/lib/supabase/admin';
+import { getAdminClient, extractAdminFromRequest, isOfficeInsideAdminScope, validateWriteScope } from '@/lib/supabase/admin';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     console.error('[create-office-branch] step 1: fetch parent office', { parent_office_id });
     const { data: parentOffice } = await supabaseAdmin
       .from('Offices')
-      .select('id,office_name,email')
+      .select('id,office_name,email,country,city')
       .eq('id', parent_office_id)
       .maybeSingle();
 
@@ -76,6 +76,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const parentInsideScope = await isOfficeInsideAdminScope(admin, parent_office_id, supabaseAdmin);
+    const branchInsideScope = await validateWriteScope(admin, { country: country || null, city: city || null }, supabaseAdmin);
+    if (!parentInsideScope || !branchInsideScope) {
+      return NextResponse.json(
+        { code: 'outside_admin_scope', message: 'Record is outside admin data scope.' },
+        { status: 403 },
+      );
+    }
     // ---- 2. Normalize login email ----
     const normalizedLoginEmail = login_email.trim().toLowerCase();
     if (!EMAIL_RE.test(normalizedLoginEmail)) {

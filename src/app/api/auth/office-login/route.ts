@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isAdminRole } from '@/lib/admin-scope';
 
 export async function POST(req: Request) {
   try {
@@ -22,11 +23,11 @@ export async function POST(req: Request) {
     // ---- 1. Check Admins ----
     const { data: adminData } = await supabase
       .from('Admins')
-      .select('id')
+      .select('id,role,is_active')
       .eq('id', userId)
       .maybeSingle();
 
-    if (adminData) {
+    if (adminData?.is_active && isAdminRole(adminData.role)) {
       return NextResponse.json({
         accountType: 'admin',
         session: { access_token: data.session?.access_token, refresh_token: data.session?.refresh_token },
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
 
     await supabase.auth.signOut();
     return NextResponse.json({ error: 'Account not found. Please check your credentials.' }, { status: 404 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
   }
 }

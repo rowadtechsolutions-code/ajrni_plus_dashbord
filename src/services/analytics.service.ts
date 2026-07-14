@@ -1,12 +1,18 @@
 import apiClient from '@/lib/api/axios';
+import { applyAdminScopeToRestQuery, SCOPE_DENY_UUID, type ResolvedAdminScope } from '@/lib/admin-scope';
 import type { Car, BookingRequest } from '@/types';
-import { getBranchLinkedOfficeIds, getActiveBranchesCount } from './branch-utils.service';
+import { getCurrentAdminScope } from './admin-scope.service';
 
 function getCountFromContentRange(contentRange?: string): number | null {
   const total = contentRange?.split('/')[1];
   if (!total || total === '*') return null;
   const count = Number(total);
   return Number.isFinite(count) ? count : null;
+}
+
+function inFilter(ids: string[]): string {
+  if (ids.length === 0) return `eq.${SCOPE_DENY_UUID}`;
+  return `in.(${ids.join(',')})`;
 }
 
 async function countRows(endpoint: string, filters?: Record<string, string>): Promise<number> {
@@ -53,6 +59,31 @@ async function fetchAllRows<T>(endpoint: string, params: Record<string, string>,
   return rows;
 }
 
+function applyScope(query: Record<string, string>, scope: ResolvedAdminScope): Record<string, string> {
+  return applyAdminScopeToRestQuery(query, scope, {
+    countryField: 'country',
+    cityField: 'city',
+  });
+}
+
+async function getScopedOfficeIds(scope: ResolvedAdminScope, includeBranches = true): Promise<string[]> {
+  const query = applyScope({
+    select: 'id',
+    ...(includeBranches ? {} : { is_sub_branch: 'eq.false' }),
+  }, scope);
+  const offices = await fetchAllRows<{ id: string }>('/Offices', query);
+  return offices.map((office) => office.id).filter(Boolean);
+}
+
+async function getScopedCarIds(officeIds: string[]): Promise<string[]> {
+  if (officeIds.length === 0) return [];
+  const cars = await fetchAllRows<{ id: string }>('/cars', {
+    select: 'id',
+    office_id: inFilter(officeIds),
+  });
+  return cars.map((car) => car.id).filter(Boolean);
+}
+
 export const analyticsService = {
   async getDashboardStats(): Promise<{
     totalUsers: number;
@@ -64,21 +95,24 @@ export const analyticsService = {
     favoritesCount: number;
     activeBranches: number;
   }> {
-    const branchIds = await getBranchLinkedOfficeIds();
-    const officeFilters: Record<string, string> = {};
-    if (branchIds.length > 0) {
-      officeFilters.id = `not.in.(${branchIds.join(',')})`;
-    }
+    const scope = await getCurrentAdminScope();
+    const userFilters = applyScope({}, scope);
+    const officeFilters = applyScope({ is_sub_branch: 'eq.false' }, scope);
+    const branchFilters = applyScope({ is_sub_branch: 'eq.true', is_active: 'eq.true' }, scope);
+    const scopedOfficeIds = await getScopedOfficeIds(scope, true);
+    const scopedCarIds = await getScopedCarIds(scopedOfficeIds);
+    const officeIdFilter = inFilter(scopedOfficeIds);
+    const carIdFilter = inFilter(scopedCarIds);
 
     const [totalUsers, totalOffices, totalCars, activeCars, pendingRequests, offersCount, favoritesCount, activeBranches] = await Promise.all([
-      safeCountRows('/Users'),
+      safeCountRows('/Users', userFilters),
       safeCountRows('/Offices', officeFilters),
-      safeCountRows('/cars'),
-      safeCountRows('/cars', { is_active: 'eq.true' }),
-      safeCountRows('/BookingRequests', { status: 'eq.pending' }),
-      safeCountRows('/BookingOffers'),
-      safeCountRows('/Favorites'),
-      getActiveBranchesCount(),
+      safeCountRows('/cars', { office_id: officeIdFilter }),
+      safeCountRows('/cars', { office_id: officeIdFilter, is_active: 'eq.true' }),
+      safeCountRows('/BookingRequestOffices', { office_id: officeIdFilter, status: 'eq.pending' }),
+      safeCountRows('/BookingOffers', { office_id: officeIdFilter }),
+      safeCountRows('/Favorites', { car_id: carIdFilter }),
+      safeCountRows('/Offices', branchFilters),
     ]);
 
     return {
@@ -94,10 +128,13 @@ export const analyticsService = {
   },
 
   async getRequestsOverTime(): Promise<{ date: string; count: number }[]> {
-    const requests = await fetchAllRows<BookingRequest>('/BookingRequests', {
+    const scope = await getCurrentAdminScope();
+    const officeIds = await getScopedOfficeIds(scope, true);
+    const requests = await fetchAllRows<BookingRequest>('/BookingRequestOffices', {
       select: 'created_at',
+      office_id: inFilter(officeIds),
       order: 'created_at.asc',
-    });
+    } as Record<string, string>);
 
     const grouped: Record<string, number> = {};
     requests.forEach((r) => {
@@ -109,8 +146,11 @@ export const analyticsService = {
   },
 
   async getCarsByBrand(): Promise<{ brand: string; count: number }[]> {
+    const scope = await getCurrentAdminScope();
+    const officeIds = await getScopedOfficeIds(scope, true);
     const cars = await fetchAllRows<Car>('/cars', {
       select: 'brand',
+      office_id: inFilter(officeIds),
     });
 
     const grouped: Record<string, number> = {};
@@ -124,15 +164,19 @@ export const analyticsService = {
   },
 
   async getOfficesActivity(): Promise<{ office_id: string; office_name: string; count: number }[]> {
+    const scope = await getCurrentAdminScope();
+    const officeIds = await getScopedOfficeIds(scope, true);
     let offers: { office_id: string; office?: { office_name?: string } }[];
 
     try {
       offers = await fetchAllRows<{ office_id: string; office?: { office_name?: string } }>('/BookingOffers', {
         select: 'office_id,office:office_id(office_name)',
+        office_id: inFilter(officeIds),
       });
     } catch {
       offers = await fetchAllRows<{ office_id: string }>('/BookingOffers', {
         select: 'office_id',
+        office_id: inFilter(officeIds),
       });
     }
 

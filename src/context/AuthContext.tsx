@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { adminsService } from '@/services/admins.service';
+import { isSuperAdmin } from '@/lib/admin-scope';
 import type { Admin } from '@/types';
 
 interface AuthContextType {
@@ -94,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         admin,
         loading,
-        isSuperAdmin: admin?.role === 'super_admin',
+        isSuperAdmin: isSuperAdmin(admin?.role),
         signIn,
         signOut,
       }}

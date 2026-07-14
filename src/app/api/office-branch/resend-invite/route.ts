@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getAdminClient, extractAdminFromRequest } from '@/lib/supabase/admin';
+import { getAdminClient, extractAdminFromRequest, isOfficeInsideAdminScope } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     const { data: branch } = await supabaseAdmin
       .from('OfficeBranches')
-      .select('id,auth_user_id,email,branch_name,parent_office_id')
+      .select('id,auth_user_id,email,branch_name,parent_office_id,linked_office_id')
       .eq('id', id)
       .maybeSingle();
 
@@ -35,6 +35,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const insideScope = await isOfficeInsideAdminScope(admin, branch.linked_office_id, supabaseAdmin);
+    if (!insideScope) {
+      return NextResponse.json(
+        { code: 'outside_admin_scope', message: 'Record is outside admin data scope.' },
+        { status: 403 },
+      );
+    }
     if (!branch.auth_user_id || !branch.email) {
       return NextResponse.json(
         { code: 'missing_auth_data', message: 'الفرع لا يملك بيانات تسجيل دخول صالحة.' },
@@ -86,9 +93,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { code: 'internal_error', message: err.message || 'Internal error' },
+      { code: 'internal_error', message: err instanceof Error ? err.message : 'Internal error' },
       { status: 500 },
     );
   }

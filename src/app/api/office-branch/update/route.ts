@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { getAdminClient, extractAdminFromRequest } from '@/lib/supabase/admin';
+﻿import { NextResponse } from 'next/server';
+import { getAdminClient, extractAdminFromRequest, isOfficeInsideAdminScope, validateWriteScope } from '@/lib/supabase/admin';
 
 const SYNCED_BRANCH_FIELDS: Array<{
   branchKey: string;
@@ -52,7 +52,7 @@ export async function PATCH(req: Request) {
 
     const { data: branch } = await supabaseAdmin
       .from('OfficeBranches')
-      .select('id,linked_office_id,auth_user_id')
+      .select('id,linked_office_id,auth_user_id,country,city')
       .eq('id', id)
       .maybeSingle();
 
@@ -63,6 +63,13 @@ export async function PATCH(req: Request) {
       );
     }
 
+    const insideScope = await isOfficeInsideAdminScope(admin, branch.linked_office_id, supabaseAdmin);
+    if (!insideScope) {
+      return NextResponse.json(
+        { code: 'outside_admin_scope', message: 'Record is outside admin data scope.' },
+        { status: 403 },
+      );
+    }
     const linkedOfficeId = branch.linked_office_id;
     if (!linkedOfficeId) {
       return NextResponse.json(
@@ -71,6 +78,11 @@ export async function PATCH(req: Request) {
       );
     }
 
+    const { data: linkedOffice } = await supabaseAdmin
+      .from('Offices')
+      .select('id,country,city')
+      .eq('id', linkedOfficeId)
+      .maybeSingle<{ id: string; country: string | null; city: string | null }>();
     const branchUpdate: Record<string, unknown> = {};
     const officeUpdate: Record<string, unknown> = {};
 
@@ -96,6 +108,19 @@ export async function PATCH(req: Request) {
       );
     }
 
+    const targetCountry = typeof officeUpdate.country === 'string'
+      ? officeUpdate.country
+      : linkedOffice?.country ?? branch.country ?? null;
+    const targetCity = typeof officeUpdate.city === 'string'
+      ? officeUpdate.city
+      : linkedOffice?.city ?? branch.city ?? null;
+    const targetInsideScope = await validateWriteScope(admin, { country: targetCountry || null, city: targetCity || null }, supabaseAdmin);
+    if (!targetInsideScope) {
+      return NextResponse.json(
+        { code: 'outside_admin_scope', message: 'Record is outside admin data scope.' },
+        { status: 403 },
+      );
+    }
     if (Object.keys(branchUpdate).length > 0) {
       const { error: branchUpdateError } = await supabaseAdmin
         .from('OfficeBranches')
@@ -145,9 +170,9 @@ export async function PATCH(req: Request) {
       .single();
 
     return NextResponse.json({ success: true, branch: updatedBranch });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { code: 'internal_error', message: err.message || 'Internal error' },
+      { code: 'internal_error', message: err instanceof Error ? err.message : 'Internal error' },
       { status: 500 },
     );
   }

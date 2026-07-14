@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { FiPlus, FiAlertCircle, FiRotateCcw } from 'react-icons/fi';
@@ -9,6 +9,7 @@ import { clearBranchCache } from '@/services/branch-utils.service';
 import { countriesService } from '@/services/countries.service';
 import { citiesService } from '@/services/cities.service';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/context/AuthContext';
 import { OfficeBranchesStats } from './office-branches-stats';
 import { OfficeBranchesFilters } from './office-branches-filters';
 import type { FiltersState } from './office-branches-filters';
@@ -16,7 +17,7 @@ import { OfficeBranchesTable } from './office-branches-table';
 import { OfficeBranchForm } from './office-branch-form';
 import { OfficeBranchDetails } from './office-branch-details';
 import { OfficeBranchDeleteDialog } from './office-branch-delete-dialog';
-import type { OfficeBranch, OfficeSummary, OfficeBranchFormValues, Country, City } from '@/types';
+import type { OfficeBranch, OfficeBranchFormValues, Country, City } from '@/types';
 
 function useDebouncedValue(value: string, delay = 400) {
   const [debounced, setDebounced] = useState(value);
@@ -41,6 +42,7 @@ export function OfficeBranchesPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { admin: currentAdmin, loading: authLoading } = useAuth();
   const tb = t.officeBranches;
 
   const [page, setPage] = useState(1);
@@ -55,7 +57,8 @@ export function OfficeBranchesPage() {
   useEffect(() => { setPage(1); }, [debouncedSearch, filters.is_active, filters.parent_office_id, filters.country, filters.city]);
 
   const listQuery = useQuery({
-    queryKey: ['office-branches', page, debouncedSearch, filters.is_active, filters.parent_office_id, filters.country, filters.city],
+    queryKey: ['office-branches', currentAdmin?.id, currentAdmin?.role, currentAdmin?.data_scope, currentAdmin?.country_id, currentAdmin?.city_id, page, debouncedSearch, filters.is_active, filters.parent_office_id, filters.country, filters.city],
+    enabled: !authLoading && !!currentAdmin,
     queryFn: () => officeBranchesService.list({
       page,
       limit: LIMIT,
@@ -64,12 +67,14 @@ export function OfficeBranchesPage() {
       parent_office_id: filters.parent_office_id || undefined,
       country: filters.country || undefined,
       city: filters.city || undefined,
+      currentAdmin,
     }),
   });
 
   const statsQuery = useQuery({
-    queryKey: ['office-branches-stats'],
-    queryFn: () => officeBranchesService.getStats(),
+    queryKey: ['office-branches-stats', currentAdmin?.id, currentAdmin?.role, currentAdmin?.data_scope, currentAdmin?.country_id, currentAdmin?.city_id],
+    enabled: !authLoading && !!currentAdmin,
+    queryFn: () => officeBranchesService.getStats(currentAdmin),
   });
 
   const officesQuery = useQuery({
@@ -109,7 +114,7 @@ export function OfficeBranchesPage() {
       showToast(tb.addSuccess, 'success');
       setShowAddForm(false);
     },
-    onError: (_err: any) => {
+    onError: () => {
       // error handled in form component
     },
   });
@@ -122,7 +127,7 @@ export function OfficeBranchesPage() {
       showToast(tb.editSuccess, 'success');
       setEditBranch(null);
     },
-    onError: (_err: any) => {
+    onError: () => {
       // error handled in form component
     },
   });
@@ -134,9 +139,10 @@ export function OfficeBranchesPage() {
       showToast(tb.deleteSuccess, 'success');
       setDeleteBranch(null);
     },
-    onError: (err: any) => {
-      const msg = err?.message || '';
-      const code = err?.code || '';
+    onError: (err: unknown) => {
+      const error = err as { message?: string; code?: string };
+      const msg = error.message || '';
+      const code = error.code || '';
       if (code === '42501' || msg.includes('permission denied')) {
         showToast(tb.permissionDenied, 'error');
       } else {
@@ -172,8 +178,9 @@ export function OfficeBranchesPage() {
     onSuccess: () => {
       showToast('تم إرسال رابط جديد لتعيين كلمة المرور إلى بريد الفرع.', 'success');
     },
-    onError: (err: any) => {
-      const code = err?.code || '';
+    onError: (err: unknown) => {
+      const error = err as { code?: string };
+      const code = error.code || '';
       if (code === 'rate_limited') {
         showToast('تم إرسال رابط مؤخرًا. يرجى الانتظار دقيقة قبل طلب رابط جديد.', 'info');
       } else {
@@ -210,7 +217,7 @@ export function OfficeBranchesPage() {
         </button>
       </div>
 
-      <OfficeBranchesStats data={statsQuery.data} loading={statsQuery.isLoading} />
+      <OfficeBranchesStats data={statsQuery.data} loading={authLoading || statsQuery.isLoading} />
 
       <OfficeBranchesFilters
         filters={filters}
@@ -241,7 +248,7 @@ export function OfficeBranchesPage() {
       ) : (
         <OfficeBranchesTable
           data={listQuery.data?.data || []}
-          loading={listQuery.isLoading}
+          loading={authLoading || listQuery.isLoading}
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}

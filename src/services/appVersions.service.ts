@@ -1,4 +1,5 @@
 import { supabase, ensureSession } from '@/lib/supabase/client';
+import { isSuperAdmin } from '@/lib/admin-scope';
 import type { AppVersion } from '@/types';
 
 export const appVersionsService = {
@@ -43,7 +44,7 @@ export const appVersionsService = {
 
     const { data: adminData, error: adminQueryError } = await supabase
       .from('Admins')
-      .select('id')
+      .select('id,role,is_active')
       .eq('id', currentSession.user?.id)
       .maybeSingle();
 
@@ -52,7 +53,7 @@ export const appVersionsService = {
       queryError: adminQueryError?.message || null,
     });
 
-    if (!adminData) {
+    if (!adminData || !adminData.is_active || !isSuperAdmin(adminData.role)) {
       throw new Error(
         'Admin privileges required. The current user is not found in the Admins table.',
       );

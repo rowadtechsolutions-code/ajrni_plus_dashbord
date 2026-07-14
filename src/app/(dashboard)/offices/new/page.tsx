@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -10,6 +10,9 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { countriesService } from '@/services/countries.service';
 import { citiesService } from '@/services/cities.service';
+import { getCurrentAdminScope } from '@/services/admin-scope.service';
+import { isCityLockedByAdminScope, isCountryLockedByAdminScope } from '@/lib/admin-scope';
+import { getAuthToken } from '@/lib/supabase/client';
 import { FiArrowLeft } from 'react-icons/fi';
 
 export default function NewOfficePage() {
@@ -24,24 +27,44 @@ export default function NewOfficePage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const { data: adminScope } = useQuery({
+    queryKey: ['admin-write-scope'],
+    queryFn: getCurrentAdminScope,
+    staleTime: 60000,
+  });
+
   const { data: countries = [] } = useQuery({
     queryKey: ['countries-active'],
     queryFn: () => countriesService.getAllActive(),
     staleTime: 60000,
   });
 
+  const scopeCountry = adminScope && isCountryLockedByAdminScope(adminScope)
+    ? countries.find((c) => c.id === adminScope.country_id || c.code === adminScope.countryCode)
+    : null;
+  const lockedCountryId = scopeCountry?.id || '';
+  const effectiveCountryId = lockedCountryId || form.country_id;
+
   const { data: cities = [], isLoading: citiesLoading } = useQuery({
-    queryKey: ['cities-by-country', form.country_id],
-    queryFn: () => form.country_id ? citiesService.getByCountry(form.country_id) : Promise.resolve([]),
-    enabled: !!form.country_id,
+    queryKey: ['cities-by-country', effectiveCountryId],
+    queryFn: () => effectiveCountryId ? citiesService.getByCountry(effectiveCountryId) : Promise.resolve([]),
+    enabled: !!effectiveCountryId,
   });
+
+  const scopeCity = adminScope && isCityLockedByAdminScope(adminScope)
+    ? cities.find((ct) => ct.id === adminScope.city_id || ct.name_ar === adminScope.cityValue || ct.name_en === adminScope.cityValue)
+    : null;
+  const lockedCityId = scopeCity?.id || '';
+  const effectiveCityId = lockedCityId || form.city_id;
+  const countryOptions = lockedCountryId ? countries.filter((c) => c.id === lockedCountryId) : countries;
+  const cityOptions = lockedCityId ? cities.filter((ct) => ct.id === lockedCityId) : cities;
 
   const REQUIRED = ['office_name', 'email', 'password', 'phone_number', 'country_id', 'city_id'];
 
   const validate = () => {
     const errs: Record<string, string> = {};
     for (const key of REQUIRED) {
-      const val = form[key as keyof typeof form];
+      const val = key === 'country_id' ? effectiveCountryId : key === 'city_id' ? effectiveCityId : form[key as keyof typeof form];
       if (!val?.toString().trim()) {
         errs[key.replace('_id', '')] = 'هذا الحقل مطلوب';
       }
@@ -56,16 +79,18 @@ export default function NewOfficePage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const selectedCountry = countries.find((c) => c.id === form.country_id);
-      const selectedCity = cities.find((c) => c.id === form.city_id);
+      const selectedCountry = countries.find((c) => c.id === effectiveCountryId);
+      const selectedCity = cities.find((c) => c.id === effectiveCityId);
       const payload = {
         ...form,
-        country: selectedCountry?.name_ar || form.country,
-        city: selectedCity?.name_ar || form.city,
+        country_id: effectiveCountryId,
+        city_id: effectiveCityId,
+        country: selectedCountry?.code || adminScope?.countryCode || form.country,
+        city: selectedCity?.name_ar || adminScope?.cityValue || form.city,
       };
       const res = await fetch('/api/create-office', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -82,6 +107,8 @@ export default function NewOfficePage() {
   });
 
   const handleChange = (key: string, value: string | boolean) => {
+    if (key === 'country_id' && lockedCountryId) return;
+    if (key === 'city_id' && lockedCityId) return;
     setForm((prev) => ({ ...prev, [key]: value }));
     if (errors[key.replace('_id', '')]) setErrors((prev) => ({ ...prev, [key.replace('_id', '')]: '' }));
     if (key === 'country_id') setForm((prev) => ({ ...prev, country_id: value as string, city_id: '', city: '' }));
@@ -121,9 +148,9 @@ export default function NewOfficePage() {
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">{t.offices.country} <span className="text-red-400">*</span></label>
-            <select value={form.country_id} onChange={(e) => handleChange('country_id', e.target.value)} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.country ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
+            <select value={effectiveCountryId} onChange={(e) => handleChange('country_id', e.target.value)} disabled={!!lockedCountryId} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.country ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
               <option value="">-- اختر الدولة --</option>
-              {countries.map((c) => (
+              {countryOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.name_ar} - {c.name_en}</option>
               ))}
             </select>
@@ -132,13 +159,13 @@ export default function NewOfficePage() {
           <div>
             <label className="block text-sm text-gray-400 mb-1">{t.offices.city} <span className="text-red-400">*</span></label>
             <select
-              value={form.city_id}
+              value={effectiveCityId}
               onChange={(e) => handleChange('city_id', e.target.value)}
-              disabled={!form.country_id || citiesLoading}
+              disabled={!effectiveCountryId || citiesLoading || !!lockedCityId}
               className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.city ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              <option value="">{!form.country_id ? '-- اختر الدولة أولاً --' : citiesLoading ? 'جارٍ التحميل...' : cities.length === 0 ? '-- لا توجد مدن --' : '-- اختر المدينة --'}</option>
-              {cities.map((ct) => (
+              <option value="">{!effectiveCountryId ? '-- اختر الدولة أولاً --' : citiesLoading ? 'جارٍ التحميل...' : cities.length === 0 ? '-- لا توجد مدن --' : '-- اختر المدينة --'}</option>
+              {cityOptions.map((ct) => (
                 <option key={ct.id} value={ct.id}>{ct.name_ar} - {ct.name_en}</option>
               ))}
             </select>

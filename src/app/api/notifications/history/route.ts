@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isSuperAdmin } from '@/lib/admin-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 
   const { data: admin, error: adminError } = await supabaseAdmin
     .from('Admins')
-    .select('id,is_active')
+    .select('id,is_active,role')
     .eq('id', userData.user.id)
     .eq('is_active', true)
     .maybeSingle();
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: adminError.message }, { status: 500 });
   }
 
-  if (!admin) {
+  if (!admin || !isSuperAdmin(admin.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

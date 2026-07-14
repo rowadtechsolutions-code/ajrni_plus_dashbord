@@ -1,4 +1,9 @@
 import apiClient from '@/lib/api/axios';
+import {
+  applyScopedRestIdFilter,
+  getCurrentAdminScope,
+  getScopedCarIds,
+} from './admin-scope.service';
 import type { Favorite, User } from '@/types';
 
 export interface FavoritesQueryParams {
@@ -8,10 +13,14 @@ export interface FavoritesQueryParams {
 
 export const favoritesService = {
   async list(params?: FavoritesQueryParams): Promise<{ data: Favorite[]; count: number }> {
-    const query: Record<string, string> = {
+    const scope = await getCurrentAdminScope();
+    const carIds = await getScopedCarIds(scope);
+    let query: Record<string, string> = {
       select: '*,car:car_id!left(*,office:office_id!left(*))',
       order: 'created_at.desc',
     };
+
+    query = applyScopedRestIdFilter(query, 'car_id', carIds);
 
     if (params?.limit) {
       query.limit = String(params.limit);
@@ -61,6 +70,6 @@ export const favoritesService = {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    return { totalFavorites: favorites.length, topCars, topUsers };
+    return { totalFavorites: res.count, topCars, topUsers };
   },
 };

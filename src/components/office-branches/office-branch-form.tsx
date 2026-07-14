@@ -8,7 +8,9 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/SearchableSelect';
 import { countriesService } from '@/services/countries.service';
 import { citiesService } from '@/services/cities.service';
-import type { OfficeBranch, OfficeSummary, OfficeBranchFormValues, Country, City } from '@/types';
+import { getCurrentAdminScope } from '@/services/admin-scope.service';
+import { isCityLockedByAdminScope, isCountryLockedByAdminScope } from '@/lib/admin-scope';
+import type { OfficeBranch, OfficeSummary, OfficeBranchFormValues } from '@/types';
 
 interface OfficeBranchFormProps {
   isOpen: boolean;
@@ -44,13 +46,22 @@ export function OfficeBranchForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
 
+  const { data: adminScope } = useQuery({
+    queryKey: ['branch-form-admin-write-scope'],
+    queryFn: getCurrentAdminScope,
+    enabled: isOpen,
+    staleTime: 60000,
+  });
+
   const { data: countriesList = [] } = useQuery({
     queryKey: ['branch-form-countries'],
     queryFn: () => countriesService.getAllActive(),
     staleTime: 60000,
   });
 
-  const selectedCountryObj = countriesList.find((c) => c.code === form.country);
+  const lockedCountryCode = adminScope && isCountryLockedByAdminScope(adminScope) ? adminScope.countryCode || '' : '';
+  const effectiveCountry = lockedCountryCode || form.country;
+  const selectedCountryObj = countriesList.find((c) => c.code === effectiveCountry);
 
   const { data: citiesList = [] } = useQuery({
     queryKey: ['branch-form-cities', selectedCountryObj?.id],
@@ -59,7 +70,12 @@ export function OfficeBranchForm({
     staleTime: 30000,
   });
 
-  const selectedCityObj = citiesList.find((ct) => ct.name_ar === form.city);
+  const lockedCityValue = adminScope && isCityLockedByAdminScope(adminScope) ? adminScope.cityValue || '' : '';
+  const effectiveCity = lockedCityValue || form.city;
+  const countryOptionsList = lockedCountryCode ? countriesList.filter((c) => c.code === lockedCountryCode) : countriesList;
+  const cityOptionsList = lockedCityValue
+    ? citiesList.filter((ct) => ct.id === adminScope?.city_id || ct.name_ar === lockedCityValue || ct.name_en === lockedCityValue)
+    : citiesList;
 
   const sortedOffices = useMemo(() => {
     return [...offices].sort((a, b) => {
@@ -109,13 +125,13 @@ export function OfficeBranchForm({
       errs.branch_name = tb.branchNameMaxLength;
     }
 
-    const countryExists = form.country && countriesList.some((c) => c.code === form.country);
+    const countryExists = effectiveCountry && countriesList.some((c) => c.code === effectiveCountry);
     if (!countryExists) errs.country = tb.countryRequired;
 
     if (countryExists) {
-      const country = countriesList.find((c) => c.code === form.country);
-      const cityBelongsToCountry = form.city && country
-        ? citiesList.some((ct) => ct.country_id === country.id && ct.name_ar === form.city)
+      const country = countriesList.find((c) => c.code === effectiveCountry);
+      const cityBelongsToCountry = effectiveCity && country
+        ? citiesList.some((ct) => ct.country_id === country.id && (ct.name_ar === effectiveCity || ct.name_en === effectiveCity))
         : false;
       if (!cityBelongsToCountry) errs.city = tb.cityRequiredFromList;
     } else if (form.city) {
@@ -152,8 +168,8 @@ export function OfficeBranchForm({
         branch_name: form.branch_name.trim(),
         email: form.email?.trim().toLowerCase() || '',
         phone_number: form.phone_number?.trim() || '',
-        country: form.country,
-        city: form.city,
+        country: effectiveCountry,
+      city: effectiveCity,
         is_active: form.is_active,
         bio: form.bio?.trim() || '',
         image: form.image ?? null,
@@ -166,8 +182,8 @@ export function OfficeBranchForm({
       branch_name: form.branch_name.trim(),
       email: form.email.trim().toLowerCase(),
       phone_number: form.phone_number?.trim() || '',
-      country: form.country,
-      city: form.city,
+      country: effectiveCountry,
+      city: effectiveCity,
       is_active: form.is_active,
       bio: form.bio?.trim() || '',
       image: form.image ?? null,
@@ -181,20 +197,21 @@ export function OfficeBranchForm({
     if (!validated) return;
     try {
       await onSave(validated);
-    } catch (err: any) {
-      const code = err?.code || '';
-      const msg = err?.message || '';
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string; debug?: unknown; status?: number; details?: unknown; hint?: string; stack?: string; rolledBack?: boolean };
+      const code = error.code || '';
+      const msg = error.message || '';
       console.error(
         '[OfficeBranchForm] Submit failed',
         JSON.stringify(
           {
-            code: err?.code,
-            message: err?.message,
-            debug: err?.debug,
-            status: err?.status,
-            details: err?.details,
-            hint: err?.hint,
-            stack: err?.stack,
+            code: error.code,
+            message: error.message,
+            debug: error.debug,
+            status: error.status,
+            details: error.details,
+            hint: error.hint,
+            stack: error.stack,
           },
           null,
           2,
@@ -211,20 +228,20 @@ export function OfficeBranchForm({
       } else if (code === 'parent_office_not_found') {
         setSubmitError(tb.parentOfficeNotFound);
       } else if (code === 'auth_user_creation_failed') {
-        console.error('[OfficeBranchForm] Auth user creation error detail:', msg, err?.debug);
+        console.error('[OfficeBranchForm] Auth user creation error detail:', msg, error.debug);
         setSubmitError(`${tb.authUserFailed} (${msg})`);
       } else if (code === 'offices_insert_failed' || code === 'branch_insert_failed') {
         setSubmitError(tb.officesInsertFailed);
       } else if (code === 'linked_data_exists') {
         setSubmitError(tb.linkedDataExists);
-      } else if (code === 'office_sync_failed' || msg.includes('rolledBack') || err.rolledBack) {
+      } else if (code === 'office_sync_failed' || msg.includes('rolledBack') || error.rolledBack) {
         setSubmitError(tb.syncFailed);
-      } else if (code === 'admin_required' || code === '42501' || msg.includes('permission denied')) {
+      } else if (code === 'admin_required' || code === 'outside_admin_scope' || code === '42501' || msg.includes('permission denied')) {
         setSubmitError(tb.permissionDenied);
       } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
         setSubmitError(tb.connectionFailed);
       } else {
-        console.error('[OfficeBranchForm] Unexpected error', err);
+        console.error('[OfficeBranchForm] Unexpected error', error);
         setSubmitError(`${tb.unexpectedError} (${msg})`);
       }
     }
@@ -232,17 +249,18 @@ export function OfficeBranchForm({
 
   const handleOfficeChange = (officeId: string) => {
     const office = offices.find((o) => o.id === officeId);
-    const newCountry = office?.country || '';
+    const newCountry = lockedCountryCode || office?.country || '';
     setForm((prev) => ({
       ...prev,
       parent_office_id: officeId,
       country: newCountry,
-      city: '',
+      city: lockedCityValue || '',
     }));
     if (errors.parent_office_id) setErrors((prev) => ({ ...prev, parent_office_id: '' }));
   };
 
   const handleCountryChange = (code: string) => {
+    if (lockedCountryCode) return;
     setForm((prev) => ({ ...prev, country: code, city: '' }));
     if (errors.country) setErrors((prev) => ({ ...prev, country: '' }));
     if (errors.city) setErrors((prev) => ({ ...prev, city: '' }));
@@ -258,13 +276,13 @@ export function OfficeBranchForm({
       : { label: t.common.inactive, variant: 'error' as const },
   }));
 
-  const countryOptions: SearchableSelectOption[] = countriesList.map((c) => ({
+  const countryOptions: SearchableSelectOption[] = countryOptionsList.map((c) => ({
     value: c.code,
     label: `${c.flag_emoji || ''} ${locale === 'ar' ? c.name_ar : c.name_en}`,
     sublabel: c.code,
   }));
 
-  const cityOptions: SearchableSelectOption[] = citiesList.map((ct) => ({
+  const cityOptions: SearchableSelectOption[] = cityOptionsList.map((ct) => ({
     value: ct.name_ar,
     label: locale === 'ar' ? ct.name_ar : ct.name_en,
   }));
@@ -321,11 +339,12 @@ export function OfficeBranchForm({
             </label>
             <SearchableSelect
               options={countryOptions}
-              value={form.country}
+              value={effectiveCountry}
               onChange={handleCountryChange}
               placeholder={tb.selectCountry}
               searchPlaceholder={t.common.search}
               noResultsText={t.common.noData}
+              disabled={!!lockedCountryCode}
               error={errors.country}
             />
           </div>
@@ -335,12 +354,12 @@ export function OfficeBranchForm({
             </label>
             <SearchableSelect
               options={cityOptions}
-              value={form.city}
-              onChange={(v) => update('city', v)}
-              placeholder={!form.country ? '-- اختر الدولة أولاً --' : tb.selectCity}
+              value={effectiveCity}
+              onChange={(v) => { if (!lockedCityValue) update('city', v); }}
+              placeholder={!effectiveCountry ? '-- اختر الدولة أولاً --' : tb.selectCity}
               searchPlaceholder={t.common.search}
               noResultsText={t.common.noData}
-              disabled={!form.country}
+              disabled={!effectiveCountry || !!lockedCityValue}
               error={errors.city}
             />
           </div>

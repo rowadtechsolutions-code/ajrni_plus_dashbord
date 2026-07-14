@@ -1,6 +1,7 @@
 import apiClient from '@/lib/api/axios';
+import { applyAdminScopeToRestQuery, SCOPE_DENY_UUID, type ResolvedAdminScope } from '@/lib/admin-scope';
 import { normalizeCommercialReg } from './offices.service';
-import { getBranchLinkedOfficeIds } from './branch-utils.service';
+import { getCurrentAdminScope } from './admin-scope.service';
 
 interface PeriodRow {
   id: string;
@@ -65,11 +66,24 @@ export interface GeoEntry {
   officeCount: number;
 }
 
+function inFilter(ids: string[]): string {
+  if (ids.length === 0) return `eq.${SCOPE_DENY_UUID}`;
+  return `in.(${ids.join(',')})`;
+}
+
+function applyScope(query: Record<string, string>, scope: ResolvedAdminScope): Record<string, string> {
+  return applyAdminScopeToRestQuery(query, scope, {
+    countryField: 'country',
+    cityField: 'city',
+  });
+}
+
 async function fetchRowsInPeriod<T>(
   endpoint: string,
   select: string,
   fromDate: string,
   toDate: string,
+  filters?: Record<string, string>,
 ): Promise<T[]> {
   const rows: T[] = [];
   let page = 0;
@@ -82,10 +96,11 @@ async function fetchRowsInPeriod<T>(
     const res = await apiClient.get<T[]>(endpoint, {
       params: {
         select,
+        ...filters,
         order: 'created_at.asc',
         limit: String(pageSize),
         offset: String(page * pageSize),
-        'and': `(created_at.gte.${fromISO},created_at.lt.${toISO})`,
+        and: `(created_at.gte.${fromISO},created_at.lt.${toISO})`,
       },
     });
     rows.push(...res.data);
@@ -122,6 +137,15 @@ async function fetchRowsFiltered<T>(
   return rows;
 }
 
+async function getScopedOfficeIds(scope: ResolvedAdminScope, includeBranches = true): Promise<string[]> {
+  const query = applyScope({
+    select: 'id',
+    ...(includeBranches ? {} : { is_sub_branch: 'eq.false' }),
+  }, scope);
+  const offices = await fetchRowsFiltered<{ id: string }>('/Offices', 'id', query);
+  return offices.map((office) => office.id).filter(Boolean);
+}
+
 function getDateRange(fromDate: string, toDate: string): { from: string; to: string; prevFrom: string; prevTo: string } {
   const from = new Date(fromDate + 'T00:00:00Z');
   const to = new Date(toDate + 'T00:00:00Z');
@@ -137,39 +161,37 @@ function getDateRange(fromDate: string, toDate: string): { from: string; to: str
 }
 
 const BASE_SELECT = 'id,created_at';
-const REQUEST_SELECT = `${BASE_SELECT},status,user_id`;
+const REQUEST_SELECT = `${BASE_SELECT},status`;
 const USER_SELECT = `${BASE_SELECT},country,city`;
 const OFFICE_FULL_SELECT = `${BASE_SELECT},office_name,phone_number,country,city,is_active,commercial_registration_number`;
 
 export const analyticsEnhancedService = {
   async getPeriodData(fromDate: string, toDate: string): Promise<PeriodAnalyticsData> {
+    const scope = await getCurrentAdminScope();
     const { prevFrom, prevTo } = getDateRange(fromDate, toDate);
+    const userFilters = applyScope({}, scope);
+    const officeFilters = applyScope({ is_sub_branch: 'eq.false' }, scope);
+    const officeIds = await getScopedOfficeIds(scope, true);
+    const officeIdFilter = inFilter(officeIds);
 
-    const [bookingRequests, prevBookingRequests, newUsers, prevNewUsers, rawNewOffices, rawPrevNewOffices, newCars, prevNewCars] =
+    const [bookingRequests, prevBookingRequests, newUsers, prevNewUsers, newOffices, prevNewOffices, newCars, prevNewCars] =
       await Promise.all([
-        fetchRowsInPeriod<PeriodBookingRequest>('/BookingRequests', REQUEST_SELECT, fromDate, toDate),
-        fetchRowsInPeriod<PeriodBookingRequest>('/BookingRequests', REQUEST_SELECT, prevFrom, prevTo),
-        fetchRowsInPeriod<PeriodUser>('/Users', USER_SELECT, fromDate, toDate),
-        fetchRowsInPeriod<PeriodUser>('/Users', USER_SELECT, prevFrom, prevTo),
-        fetchRowsInPeriod<PeriodOffice>('/Offices', OFFICE_FULL_SELECT, fromDate, toDate),
-        fetchRowsInPeriod<PeriodOffice>('/Offices', OFFICE_FULL_SELECT, prevFrom, prevTo),
-        fetchRowsInPeriod<PeriodRow>('/cars', BASE_SELECT, fromDate, toDate),
-        fetchRowsInPeriod<PeriodRow>('/cars', BASE_SELECT, prevFrom, prevTo),
+        fetchRowsInPeriod<PeriodBookingRequest>('/BookingRequestOffices', REQUEST_SELECT, fromDate, toDate, { office_id: officeIdFilter }),
+        fetchRowsInPeriod<PeriodBookingRequest>('/BookingRequestOffices', REQUEST_SELECT, prevFrom, prevTo, { office_id: officeIdFilter }),
+        fetchRowsInPeriod<PeriodUser>('/Users', USER_SELECT, fromDate, toDate, userFilters),
+        fetchRowsInPeriod<PeriodUser>('/Users', USER_SELECT, prevFrom, prevTo, userFilters),
+        fetchRowsInPeriod<PeriodOffice>('/Offices', OFFICE_FULL_SELECT, fromDate, toDate, officeFilters),
+        fetchRowsInPeriod<PeriodOffice>('/Offices', OFFICE_FULL_SELECT, prevFrom, prevTo, officeFilters),
+        fetchRowsInPeriod<PeriodRow>('/cars', BASE_SELECT, fromDate, toDate, { office_id: officeIdFilter }),
+        fetchRowsInPeriod<PeriodRow>('/cars', BASE_SELECT, prevFrom, prevTo, { office_id: officeIdFilter }),
       ]);
-
-    const branchIds = await getBranchLinkedOfficeIds();
-    const branchSet = new Set(branchIds);
-    const newOffices = rawNewOffices.filter((o) => !branchSet.has(o.id));
-    const prevNewOffices = rawPrevNewOffices.filter((o) => !branchSet.has(o.id));
 
     return { bookingRequests, prevBookingRequests, newUsers, prevNewUsers, newOffices, prevNewOffices, newCars, prevNewCars };
   },
 
   async getAllOfficesForReview(): Promise<{ offices: ReviewOffice[]; duplicateGroups: Map<string, ReviewOffice[]> }> {
-    const allOffices = await fetchRowsFiltered<ReviewOffice>('/Offices', OFFICE_FULL_SELECT);
-    const branchIds = await getBranchLinkedOfficeIds();
-    const branchSet = new Set(branchIds);
-    const offices = allOffices.filter((o) => !branchSet.has(o.id));
+    const scope = await getCurrentAdminScope();
+    const offices = await fetchRowsFiltered<ReviewOffice>('/Offices', OFFICE_FULL_SELECT, applyScope({ is_sub_branch: 'eq.false' }, scope));
 
     const duplicateMap = new Map<string, ReviewOffice[]>();
     for (const office of offices) {
@@ -188,9 +210,12 @@ export const analyticsEnhancedService = {
 
   async getTopOffices(): Promise<TopOfficeEntry[]> {
     try {
+      const scope = await getCurrentAdminScope();
+      const officeIds = await getScopedOfficeIds(scope, true);
       const offers = await fetchRowsFiltered<{ office_id: string; office?: { office_name?: string } }>(
         '/BookingOffers',
         'office_id,office:office_id(office_name)',
+        { office_id: inFilter(officeIds) },
       );
 
       const map = new Map<string, TopOfficeEntry>();
@@ -214,13 +239,11 @@ export const analyticsEnhancedService = {
 
   async getGeoDistribution(): Promise<GeoEntry[]> {
     try {
-      const [users, rawOffices] = await Promise.all([
-        fetchRowsFiltered<{ country?: string }>('/Users', 'country'),
-        fetchRowsFiltered<{ id: string; country?: string }>('/Offices', 'id,country'),
+      const scope = await getCurrentAdminScope();
+      const [users, offices] = await Promise.all([
+        fetchRowsFiltered<{ country?: string }>('/Users', 'country', applyScope({}, scope)),
+        fetchRowsFiltered<{ id: string; country?: string }>('/Offices', 'id,country', applyScope({ is_sub_branch: 'eq.false' }, scope)),
       ]);
-      const branchIds = await getBranchLinkedOfficeIds();
-      const branchSet = new Set(branchIds);
-      const offices = rawOffices.filter((o) => !branchSet.has(o.id));
 
       const userMap = new Map<string, number>();
       const officeMap = new Map<string, number>();

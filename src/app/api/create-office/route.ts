@@ -1,10 +1,17 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { extractAdminFromRequest, isOfficeInsideAdminScope, validateWriteScope } from '@/lib/supabase/admin';
 
 export async function POST(req: Request) {
   try {
+    const currentAdmin = await extractAdminFromRequest(req);
+    if (!currentAdmin) {
+      return NextResponse.json({ error: 'Admin privileges required' }, { status: 403 });
+    }
+
     const body = await req.json();
-    const { password, image, cover, bio, commercial_registration_number, is_active, id, country_id, city_id, ...officeMeta } = body;
+    const { password, image, cover, bio, commercial_registration_number, is_active, country_id, city_id, ...officeMeta } = body;
+    delete officeMeta.id;
 
     if (!officeMeta.email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -21,6 +28,10 @@ export async function POST(req: Request) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    const insideRequestedScope = await validateWriteScope(currentAdmin, { country: officeMeta.country || null, city: officeMeta.city || null }, supabaseAdmin);
+    if (!insideRequestedScope) {
+      return NextResponse.json({ error: 'Record is outside admin data scope', code: 'outside_admin_scope' }, { status: 403 });
+    }
     // 1. تحقق إذا المستخدم موجود مسبقاً
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find((u) => u.email === officeMeta.email);
@@ -59,6 +70,12 @@ export async function POST(req: Request) {
       .eq('id', officeId)
       .maybeSingle();
 
+    if (existingOffice) {
+      const insideExistingScope = await isOfficeInsideAdminScope(currentAdmin, officeId, supabaseAdmin);
+      if (!insideExistingScope) {
+        return NextResponse.json({ error: 'Record is outside admin data scope', code: 'outside_admin_scope' }, { status: 403 });
+      }
+    }
     // 3. نقل الصور من temp لمجلد المكتب
     const moveFile = async (url: string | undefined): Promise<string | undefined> => {
       if (!url) return undefined;
@@ -135,7 +152,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ office, user: { id: officeId, email: authUser.email } });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 });
   }
 }

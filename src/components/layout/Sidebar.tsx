@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FiBell, FiBriefcase, FiFileText, FiGift, FiGlobe, FiGrid, FiHeart, FiImage, FiLogOut, FiSettings, FiShare2, FiSmartphone, FiTruck, FiUsers, FiX } from 'react-icons/fi';
+import { FiBell, FiBriefcase, FiFileText, FiGift, FiGlobe, FiGrid, FiHeart, FiImage, FiLogOut, FiSettings, FiShare2, FiShield, FiSmartphone, FiTruck, FiUsers, FiX } from 'react-icons/fi';
 import { useTranslation } from '@/i18n/provider';
 import { useAuth } from '@/context/AuthContext';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -15,13 +15,13 @@ const navItems = [
   { href: '/offices', icon: FiBriefcase, labelKey: 'offices' },
   { href: '/office-branches', icon: FiShare2, labelKey: 'officeBranches' },
   { href: '/cars', icon: FiTruck, labelKey: 'cars' },
-  { href: '/requests', icon: FiFileText, labelKey: 'requests' },
-  { href: '/offers', icon: FiGift, labelKey: 'offers' },
-  { href: '/favorites', icon: FiHeart, labelKey: 'favorites' },
-  { href: '/banners', icon: FiImage, labelKey: 'banners' },
-  { href: '/notifications', icon: FiBell, labelKey: 'notifications' },
-  { href: '/countries', icon: FiGlobe, labelKey: 'countries' },
-  { href: '/app-versions', icon: FiSmartphone, labelKey: 'appVersions' },
+  { href: '/requests', icon: FiFileText, labelKey: 'requests', superAdminOnly: true },
+  { href: '/offers', icon: FiGift, labelKey: 'offers', superAdminOnly: true },
+  { href: '/favorites', icon: FiHeart, labelKey: 'favorites', superAdminOnly: true },
+  { href: '/banners', icon: FiImage, labelKey: 'banners', superAdminOnly: true },
+  { href: '/notifications', icon: FiBell, labelKey: 'notifications', superAdminOnly: true },
+  { href: '/countries', icon: FiGlobe, labelKey: 'countries', superAdminOnly: true },
+  { href: '/app-versions', icon: FiSmartphone, labelKey: 'appVersions', superAdminOnly: true },
   { href: '/settings', icon: FiSettings, labelKey: 'settings' },
 ];
 
@@ -33,8 +33,13 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { t, dir } = useTranslation();
-  const { admin, signOut } = useAuth();
+  const { admin, signOut, isSuperAdmin: canManageAdmins } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const visibleNavItems = [
+    ...navItems.slice(0, 2),
+    ...(canManageAdmins ? [{ href: '/admins', icon: FiShield, label: dir === 'rtl' ? 'المشرفون والصلاحيات' : 'Admins & Permissions', superAdminOnly: true }] : []),
+    ...navItems.slice(2),
+  ].filter((item) => !('superAdminOnly' in item) || !item.superAdminOnly || canManageAdmins);
 
   return (
     <>
@@ -82,7 +87,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
             return (
@@ -101,7 +106,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 }`}>
                   <Icon size={18} />
                 </span>
-                <span className="truncate">{t.nav[item.labelKey as keyof typeof t.nav]}</span>
+                <span className="truncate">{'label' in item ? item.label : t.nav[item.labelKey as keyof typeof t.nav]}</span>
               </Link>
             );
           })}

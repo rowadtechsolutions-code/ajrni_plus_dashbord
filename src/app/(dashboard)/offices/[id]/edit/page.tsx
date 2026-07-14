@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -7,6 +7,8 @@ import { useTranslation } from '@/i18n/provider';
 import { officesService } from '@/services/offices.service';
 import { countriesService } from '@/services/countries.service';
 import { citiesService } from '@/services/cities.service';
+import { getCurrentAdminScope } from '@/services/admin-scope.service';
+import { isCityLockedByAdminScope, isCountryLockedByAdminScope } from '@/lib/admin-scope';
 import { useToast } from '@/hooks/useToast';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ImageUpload } from '@/components/ui/ImageUpload';
@@ -26,6 +28,12 @@ export default function EditOfficePage() {
     enabled: !!params.id,
   });
 
+  const { data: adminScope } = useQuery({
+    queryKey: ['admin-write-scope'],
+    queryFn: getCurrentAdminScope,
+    staleTime: 60000,
+  });
+
   const { data: countries = [] } = useQuery({
     queryKey: ['countries-active'],
     queryFn: () => countriesService.getAllActive(),
@@ -37,13 +45,31 @@ export default function EditOfficePage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const currentForm = form ?? office ?? null;
-  const editingCountryId = currentForm?.country_id || '';
+  const currentCountryId = currentForm?.country_id
+    || countries.find((c) => c.code === currentForm?.country || c.name_ar === currentForm?.country || c.name_en === currentForm?.country)?.id
+    || '';
+  const scopeCountry = adminScope && isCountryLockedByAdminScope(adminScope)
+    ? countries.find((c) => c.id === adminScope.country_id || c.code === adminScope.countryCode)
+    : null;
+  const lockedCountryId = scopeCountry?.id || '';
+  const effectiveCountryId = lockedCountryId || currentCountryId;
 
   const { data: cities = [], isLoading: citiesLoading } = useQuery({
-    queryKey: ['cities-by-country', editingCountryId],
-    queryFn: () => editingCountryId ? citiesService.getByCountry(editingCountryId) : Promise.resolve([]),
-    enabled: !!editingCountryId,
+    queryKey: ['cities-by-country', effectiveCountryId],
+    queryFn: () => effectiveCountryId ? citiesService.getByCountry(effectiveCountryId) : Promise.resolve([]),
+    enabled: !!effectiveCountryId,
   });
+
+  const currentCityId = currentForm?.city_id
+    || cities.find((ct) => ct.name_ar === currentForm?.city || ct.name_en === currentForm?.city)?.id
+    || '';
+  const scopeCity = adminScope && isCityLockedByAdminScope(adminScope)
+    ? cities.find((ct) => ct.id === adminScope.city_id || ct.name_ar === adminScope.cityValue || ct.name_en === adminScope.cityValue)
+    : null;
+  const lockedCityId = scopeCity?.id || '';
+  const effectiveCityId = lockedCityId || currentCityId;
+  const countryOptions = lockedCountryId ? countries.filter((c) => c.id === lockedCountryId) : countries;
+  const cityOptions = lockedCityId ? cities.filter((ct) => ct.id === lockedCityId) : cities;
 
   const REQUIRED = ['office_name', 'email', 'phone_number', 'country_id', 'city_id'];
 
@@ -51,7 +77,8 @@ export default function EditOfficePage() {
     const errs: Record<string, string> = {};
     const target = form ?? office ?? null;
     for (const key of REQUIRED) {
-      const val = (target as any)?.[key]?.toString().trim();
+      const rawValue = key === 'country_id' ? effectiveCountryId : key === 'city_id' ? effectiveCityId : target?.[key as keyof Office];
+      const val = rawValue?.toString().trim();
       if (!val) {
         errs[key.replace('_id', '')] = 'هذا الحقل مطلوب';
       }
@@ -67,13 +94,15 @@ export default function EditOfficePage() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       const payload = form ?? office!;
-      const { country_id, city_id, ...cleanPayload } = payload;
-      const selectedCountry = countries.find((c) => c.id === country_id);
-      const selectedCity = cities.find((c) => c.id === city_id);
+      const cleanPayload = payload;
+      const selectedCountry = countries.find((c) => c.id === effectiveCountryId);
+      const selectedCity = cities.find((c) => c.id === effectiveCityId);
       return officesService.update(params.id as string, {
         ...cleanPayload,
-        country: selectedCountry?.name_ar || payload.country,
-        city: selectedCity?.name_ar || payload.city,
+        country_id: effectiveCountryId,
+        city_id: effectiveCityId,
+        country: selectedCountry?.code || adminScope?.countryCode || payload.country,
+        city: selectedCity?.name_ar || adminScope?.cityValue || payload.city,
       });
     },
     onSuccess: () => {
@@ -85,6 +114,8 @@ export default function EditOfficePage() {
   });
 
   const handleChange = (key: string, value: string | boolean) => {
+    if (key === 'country_id' && lockedCountryId) return;
+    if (key === 'city_id' && lockedCityId) return;
     setForm((prev) => ({ ...(prev || office || {}), [key]: value } as Partial<Office>));
     if (errors[key.replace('_id', '')]) setErrors((prev) => ({ ...prev, [key.replace('_id', '')]: '' }));
     if (key === 'country_id') setForm((prev) => ({ ...(prev || office || {}), country_id: value as string, city_id: '', city: '' } as Partial<Office>));
@@ -121,9 +152,9 @@ export default function EditOfficePage() {
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">{t.offices.country} <span className="text-red-400">*</span></label>
-            <select value={display.country_id || ''} onChange={(e) => handleChange('country_id', e.target.value)} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.country ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
+            <select value={effectiveCountryId} onChange={(e) => handleChange('country_id', e.target.value)} disabled={!!lockedCountryId} className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.country ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600`}>
               <option value="">-- اختر الدولة --</option>
-              {countries.map((c) => (
+              {countryOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.name_ar} - {c.name_en}</option>
               ))}
             </select>
@@ -133,13 +164,13 @@ export default function EditOfficePage() {
           <div>
             <label className="block text-sm text-gray-400 mb-1">{t.offices.city} <span className="text-red-400">*</span></label>
             <select
-              value={display.city_id || ''}
+              value={effectiveCityId}
               onChange={(e) => handleChange('city_id', e.target.value)}
-              disabled={!display.country_id || citiesLoading}
+              disabled={!effectiveCountryId || citiesLoading || !!lockedCityId}
               className={`w-full rounded-xl border px-4 py-2.5 text-white focus:outline-none ${errors.city ? 'border-red-500' : 'border-gray-700'} bg-gray-800 focus:border-blue-600 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              <option value="">{!display.country_id ? '-- اختر الدولة أولاً --' : citiesLoading ? 'جارٍ التحميل...' : cities.length === 0 ? '-- لا توجد مدن --' : '-- اختر المدينة --'}</option>
-              {cities.map((ct) => (
+              <option value="">{!effectiveCountryId ? '-- اختر الدولة أولاً --' : citiesLoading ? 'جارٍ التحميل...' : cities.length === 0 ? '-- لا توجد مدن --' : '-- اختر المدينة --'}</option>
+              {cityOptions.map((ct) => (
                 <option key={ct.id} value={ct.id}>{ct.name_ar} - {ct.name_en}</option>
               ))}
             </select>
