@@ -10,6 +10,7 @@ type NotificationPayload = {
   type?: string;
   reference_id?: string;
   data?: Record<string, unknown>;
+  saveToHistory?: boolean;
 };
 
 type DeviceRow = {
@@ -345,24 +346,15 @@ Deno.serve(async (req) => {
       targeted_users: targetUserIds.length,
     });
 
-    const notificationRows: NotificationInsertRow[] = targetUserIds.map((userId) => ({
-      user_id: userId,
-      title: payload.title.trim(),
-      body: payload.body.trim(),
-      type: payload.type || 'general',
-      reference_id: payload.reference_id || null,
-      data: payload.data || {},
-      is_read: false,
-    }));
+    const saveToHistory = payload.saveToHistory === true;
 
-    const { inserted: insertedNotifications, skipped: skippedNotifications } =
-      await insertNotificationRows(supabase, notificationRows);
+    let insertedNotifications: InsertedNotification[] = [];
+    let skippedNotifications = 0;
+    let historySavedWarning: string | undefined;
 
-    if (!insertedNotifications.length) {
-      throw new Error('تعذر حفظ الإشعار لأي مستلم. تحقق أن معرفات المستلمين موجودة في auth.users');
-    }
-
-    const savedUserIds = unique(insertedNotifications.map((row) => row.user_id));
+    const savedUserIds = insertedNotifications.length
+      ? unique(insertedNotifications.map((row) => row.user_id))
+      : targetUserIds;
 
     const notificationByUserId = new Map(
       insertedNotifications.map((row) => [row.user_id, row.id]),
@@ -420,7 +412,31 @@ Deno.serve(async (req) => {
       if (error) throw new Error(getErrorMessage(error, 'تعذر تعطيل التوكنات غير الصالحة'));
     }
 
-    return jsonResponse({
+    if (saveToHistory && failed === 0) {
+      try {
+        const notificationRows: NotificationInsertRow[] = targetUserIds.map((userId) => ({
+          user_id: userId,
+          title: payload.title.trim(),
+          body: payload.body.trim(),
+          type: payload.type || 'general',
+          reference_id: payload.reference_id || null,
+          data: payload.data || {},
+          is_read: false,
+        }));
+
+        const result = await insertNotificationRows(supabase, notificationRows);
+        insertedNotifications = result.inserted;
+        skippedNotifications = result.skipped;
+
+        if (!insertedNotifications.length) {
+          historySavedWarning = 'تعذر حفظ الإشعار في السجل';
+        }
+      } catch (error) {
+        historySavedWarning = 'تعذر حفظ الإشعار في السجل';
+      }
+    }
+
+    const responseBody: Record<string, unknown> = {
       success: true,
       targeted_users: targetUserIds.length,
       saved_notifications: insertedNotifications.length,
@@ -430,7 +446,13 @@ Deno.serve(async (req) => {
       failed,
       invalid_tokens: unique(invalidTokens).length,
       message: uniqueDevices.length ? 'تم إرسال الإشعار' : 'تم حفظ الإشعار، ولا توجد أجهزة فعالة',
-    });
+    };
+
+    if (historySavedWarning) {
+      responseBody.history_save_error = historySavedWarning;
+    }
+
+    return jsonResponse(responseBody);
   } catch (error) {
     const message = getErrorMessage(error);
     return jsonResponse({ success: false, message }, 400);

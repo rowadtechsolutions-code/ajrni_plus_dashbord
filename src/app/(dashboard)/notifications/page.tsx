@@ -267,6 +267,7 @@ export default function NotificationsPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [targetCount, setTargetCount] = useState<number | null>(null);
+  const [saveToHistory, setSaveToHistory] = useState(false);
   const historyLimit = 10;
 
   const needsRecipient = form.target_type === 'user' || form.target_type === 'office';
@@ -314,6 +315,7 @@ export default function NotificationsPage() {
       body: form.body.trim(),
       type: form.type,
       data,
+      saveToHistory,
     };
     if (needsRecipient) payload.target_id = form.target_id;
     if (form.reference_id.trim()) payload.reference_id = form.reference_id.trim();
@@ -324,19 +326,24 @@ export default function NotificationsPage() {
     setForm(emptyForm);
     setSelectedRecipient(null);
     setErrors({});
+    setSaveToHistory(false);
   };
 
   const sendMutation = useMutation({
     mutationFn: (payload: SendAdminNotificationPayload) => notificationsService.send(payload),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['notifications-history'] });
-      const message =
-        result.targeted_tokens === 0
-          ? 'تم حفظ الإشعار، لكن لا توجد أجهزة فعالة لإرسال Push'
-          : result.failed > 0
-            ? `تم حفظ الإشعار، وفشل إرسال Push لبعض الأجهزة (${result.failed})`
-            : 'تم إرسال الإشعار بنجاح';
-      showToast(message, result.failed > 0 ? 'info' : 'success');
+      if (result.history_save_error) {
+        showToast('تم إرسال الإشعار بنجاح، لكن تعذر حفظه في السجل.', 'warning');
+      } else {
+        const message =
+          result.targeted_tokens === 0
+            ? 'تم حفظ الإشعار، لكن لا توجد أجهزة فعالة لإرسال Push'
+            : result.failed > 0
+              ? `تم حفظ الإشعار، وفشل إرسال Push لبعض الأجهزة (${result.failed})`
+              : 'تم إرسال الإشعار بنجاح';
+        showToast(message, result.failed > 0 ? 'info' : 'success');
+      }
       resetForm();
       setConfirmOpen(false);
       setActiveTab('history');
@@ -512,6 +519,19 @@ export default function NotificationsPage() {
                 className={`min-h-28 w-full resize-y rounded-xl border ${errors.body ? 'border-red-500' : 'border-gray-700'} bg-gray-800 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-blue-600`}
               />
               {errors.body && <p className="mt-1 text-xs text-red-400">{errors.body}</p>}
+            </div>
+
+            <div className="mt-4">
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={saveToHistory}
+                  onChange={(event) => setSaveToHistory(event.target.checked)}
+                  disabled={sendMutation.isPending}
+                  className="h-5 w-5 rounded border-gray-700 bg-gray-800 text-blue-600 outline-none transition-colors focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 focus:ring-offset-gray-900"
+                />
+                <span className="text-sm text-gray-300">حفظ الإشعار في السجل</span>
+              </label>
             </div>
 
             <details className="mt-4 rounded-xl border border-gray-800 bg-gray-950/40">

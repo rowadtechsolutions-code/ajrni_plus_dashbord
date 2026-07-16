@@ -39,6 +39,7 @@ export interface SendAdminNotificationPayload {
   type: AdminNotificationType;
   reference_id?: string;
   data?: Record<string, unknown>;
+  saveToHistory?: boolean;
 }
 
 export interface SendAdminNotificationResult {
@@ -50,6 +51,7 @@ export interface SendAdminNotificationResult {
   failed: number;
   invalid_tokens?: number;
   message?: string;
+  history_save_error?: string;
 }
 
 const sanitizeSearch = (search?: string) => {
