@@ -334,7 +334,7 @@ export default function NotificationsPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['notifications-history'] });
       if (result.history_save_error) {
-        showToast('تم إرسال الإشعار بنجاح، لكن تعذر حفظه في السجل.', 'warning');
+        showToast('تم إرسال الإشعار بنجاح، لكن تعذر حفظه في السجل.', 'info');
       } else {
         const message =
           result.targeted_tokens === 0
